@@ -47,8 +47,10 @@ local function write(level, category, message, context)
 
     if level >= levels.warn then
         io.stderr:write(line)
+        io.stderr:flush()
     else
         io.stdout:write(line)
+        io.stdout:flush()
     end
 end
 

@@ -1,6 +1,7 @@
 local socket = require("socket")
 local router = require("motebase.router")
 local middleware = require("motebase.middleware")
+local log = require("motebase.utils.log")
 
 local server = {}
 
@@ -175,6 +176,7 @@ local function handle_client(wrapper, config)
         local cors = middleware.cors_headers()
         cors["Content-Length"] = "0"
         send_response(wrapper, 204, cors, nil)
+        log.info("http", method .. " " .. path .. " 204")
         return true
     end
 
@@ -200,6 +202,7 @@ local function handle_client(wrapper, config)
         local cors = middleware.cors_headers()
         cors["Content-Type"] = "application/json"
         send_response(wrapper, 404, cors, middleware.encode_json({ error = "not found" }))
+        log.info("http", method .. " " .. path .. " 404")
         return true
     end
 
@@ -218,7 +221,9 @@ local function handle_client(wrapper, config)
     for k, v in pairs(ctx._response_headers) do
         resp_headers[k] = v
     end
-    send_response(wrapper, ctx._status or 200, resp_headers, ctx._response_body)
+    local status = ctx._status or 200
+    send_response(wrapper, status, resp_headers, ctx._response_body)
+    log.info("http", method .. " " .. path .. " " .. status)
     return true
 end
 

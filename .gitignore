@@ -19,6 +19,9 @@ motebase-bin*
 
 # Database
 data/
+*.db
+*.db-shm
+*.db-wal
 
 # Symlinked style guides
 docs/LUA.style.md
