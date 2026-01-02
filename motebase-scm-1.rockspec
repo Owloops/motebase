@@ -3,12 +3,13 @@ package = "motebase"
 version = "scm-1"
 
 source = {
-    url = "git+https://github.com/pgagnidze/motebase.git",
+    url = "git+https://github.com/owloops/motebase.git",
 }
 
 description = {
-    summary = "Minimal Backend-as-a-Service for unikernels",
-    homepage = "https://github.com/pgagnidze/motebase",
+    summary = "Tiny self-hosted PocketBase alternative",
+    detailed = "MoteBase is a tiny self-hosted PocketBase alternative with dynamic collections, JWT authentication, and SQLite storage.",
+    homepage = "https://github.com/owloops/motebase",
     license = "MIT",
 }
 

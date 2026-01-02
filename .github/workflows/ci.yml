@@ -52,7 +52,7 @@ jobs:
       - uses: owloops/luast@main
         with:
           output: motebase-bin
-          targets: linux-x86_64 linux-arm64 darwin-x86_64 darwin-arm64 windows-x86_64
+          targets: linux-x86_64 linux-arm64 darwin-x86_64 darwin-arm64
       - uses: actions/upload-artifact@v4
         with:
           name: binaries
@@ -113,7 +113,7 @@ jobs:
           LUAROCKS_API_KEY: ${{ secrets.LUAROCKS_API_KEY }}
         with:
           template: motebase.rockspec.template
-          summary: Minimal Backend-as-a-Service
+          summary: Tiny self-hosted PocketBase alternative
           detailed_description: |
-            MoteBase is a minimal Backend-as-a-Service with REST API,
-            JWT authentication, and SQLite storage. ~1,200 lines of Lua.
+            MoteBase is a tiny self-hosted PocketBase alternative with dynamic collections,
+            JWT authentication, and SQLite storage.
