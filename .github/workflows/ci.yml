@@ -67,17 +67,23 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: binaries
-      - run: |
-          mv motebase-bin-linux_x86_64 motebase-bin
-          chmod +x motebase-bin
+      - name: Prepare binaries for multi-arch build
+        run: |
+          mv motebase-bin-linux_x86_64 motebase-bin-linux_amd64
+          chmod +x motebase-bin-*
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - run: |
-          docker build -t ghcr.io/${{ github.repository }}:latest .
-          docker push ghcr.io/${{ github.repository }}:latest
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/${{ github.repository }}:latest
 
   release:
     if: startsWith(github.ref, 'refs/tags/')
