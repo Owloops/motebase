@@ -50,8 +50,8 @@ Small codebase, tiny binary, minimal Docker image.
 
 | | Supabase | PocketBase | MoteBase |
 |---|----------|------------|----------|
-| Binary size | ~2GB+ | ~50MB | ~2MB |
-| Boot time | Seconds | ~1s | <100ms |
+| Size | ~2GB+ | ~50MB | ~2MB |
+| Boot time | >1s | ~1s | <100ms |
 | Self-contained | No | Yes | Yes |
 
 ## Installation
