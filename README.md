@@ -58,7 +58,15 @@ Small codebase, tiny binary, minimal Docker image.
 
 ## Installation
 
+### Install Script
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/owloops/motebase/main/install.sh | bash
+```
+
 ### Static Binary
+
+Available binaries: `linux_x86_64`, `linux_arm64`, `darwin_x86_64`, `darwin_arm64`, `windows_x86_64`
 
 ```bash
 curl -L https://github.com/owloops/motebase/releases/latest/download/motebase-bin-linux_x86_64 -o motebase
