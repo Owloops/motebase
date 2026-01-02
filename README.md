@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/motebase.svg" alt="motebase logo" width="128"/>
+
 # motebase
 
 PocketBase, but smaller.

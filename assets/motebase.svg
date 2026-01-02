@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Motebase logo: luminous mote with twinkles -->
+  <!-- Navy palette from lnko: #000080, #1e3a8a, #3b82f6, #60a5fa -->
+
+  <!-- Twinkles - one prominent, one subtle -->
+  <rect x="16" y="16" width="3" height="3" fill="#1e3a8a"/>
+  <rect x="48" y="46" width="2" height="2" fill="#000080"/>
+
+  <!-- Soft halo -->
+  <rect x="24" y="28" width="4" height="4" fill="#1e3a8a"/>
+  <rect x="36" y="28" width="4" height="4" fill="#1e3a8a"/>
+  <rect x="28" y="24" width="4" height="4" fill="#1e3a8a"/>
+  <rect x="32" y="24" width="4" height="4" fill="#1e3a8a"/>
+  <rect x="24" y="32" width="4" height="4" fill="#1e3a8a"/>
+  <rect x="36" y="32" width="4" height="4" fill="#1e3a8a"/>
+  <rect x="28" y="36" width="4" height="4" fill="#1e3a8a"/>
+  <rect x="32" y="36" width="4" height="4" fill="#1e3a8a"/>
+
+  <!-- Glowing body -->
+  <rect x="28" y="28" width="4" height="4" fill="#3b82f6"/>
+  <rect x="32" y="28" width="4" height="4" fill="#3b82f6"/>
+  <rect x="28" y="32" width="4" height="4" fill="#3b82f6"/>
+  <rect x="32" y="32" width="4" height="4" fill="#3b82f6"/>
+
+  <!-- Bright highlight -->
+  <rect x="30" y="30" width="4" height="4" fill="#60a5fa"/>
+</svg>
