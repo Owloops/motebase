@@ -56,29 +56,37 @@ Pure Lua implementation. No C dependencies except LuaSocket and SQLite. Lua 5.1+
 
 ## Installation
 
-### System Dependencies
-
-On Fedora/RHEL:
+### Static Binary
 
 ```bash
+curl -L https://github.com/pgagnidze/motebase/releases/latest/download/motebase-bin-linux_x86_64 -o motebase
+chmod +x motebase
+./motebase
+```
+
+### Docker
+
+```bash
+docker pull ghcr.io/pgagnidze/motebase:latest
+```
+
+See [Deployment](#deployment) for docker-compose with automatic HTTPS.
+
+### From Source
+
+```bash
+# Dependencies (Fedora/RHEL)
 sudo dnf install lua lua-devel luarocks gcc sqlite-devel
-```
 
-On Ubuntu/Debian:
-
-```bash
+# Dependencies (Ubuntu/Debian)
 sudo apt install lua5.4 liblua5.4-dev luarocks gcc libsqlite3-dev
-```
 
-### LuaRocks
-
-```bash
-luarocks --local install luasocket
-luarocks --local install lsqlite3complete
-luarocks --local install lua-cjson
-
-# Add to your shell profile
+# Install
+luarocks --local install luasocket lsqlite3complete lua-cjson
 eval "$(luarocks path --bin)"
+
+# Run
+./bin/motebase.lua
 ```
 
 ## Usage
@@ -253,7 +261,21 @@ motebase/
 
 ## Deployment
 
-MoteBase runs HTTP without TLS. For production, use a reverse proxy:
+### Docker Compose (Recommended)
+
+The included `docker-compose.yml` runs MoteBase with Caddy for automatic HTTPS:
+
+```bash
+# Development (self-signed cert for localhost)
+docker compose up -d
+
+# Production (auto Let's Encrypt cert)
+DOMAIN=api.example.com MOTEBASE_SECRET=your-secret docker compose up -d
+```
+
+### Manual Reverse Proxy
+
+MoteBase runs HTTP without TLS. For production without Docker, use a reverse proxy:
 
 **Caddy** (automatic HTTPS):
 
