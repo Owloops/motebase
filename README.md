@@ -7,6 +7,7 @@
 Tiny self-hosted PocketBase alternative.
 
 [![CI](https://github.com/owloops/motebase/actions/workflows/ci.yml/badge.svg)](https://github.com/owloops/motebase/actions/workflows/ci.yml)
+[![LuaRocks](https://img.shields.io/luarocks/v/owloops/motebase?color=000080)](https://luarocks.org/modules/owloops/motebase)
 [![License: MIT](https://img.shields.io/badge/license-MIT-000080)](LICENSE)
 
 </div>
