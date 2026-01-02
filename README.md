@@ -4,9 +4,9 @@
 
 # motebase
 
-PocketBase, but smaller.
+Tiny self-hosted PocketBase alternative.
 
-[![CI](https://github.com/pgagnidze/motebase/actions/workflows/ci.yml/badge.svg)](https://github.com/pgagnidze/motebase/actions/workflows/ci.yml)
+[![CI](https://github.com/owloops/motebase/actions/workflows/ci.yml/badge.svg)](https://github.com/owloops/motebase/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-000080)](LICENSE)
 
 </div>
@@ -61,7 +61,7 @@ Small codebase, tiny binary, minimal Docker image.
 ### Static Binary
 
 ```bash
-curl -L https://github.com/pgagnidze/motebase/releases/latest/download/motebase-bin-linux_x86_64 -o motebase
+curl -L https://github.com/owloops/motebase/releases/latest/download/motebase-bin-linux_x86_64 -o motebase
 chmod +x motebase
 ./motebase
 ```
