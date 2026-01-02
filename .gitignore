@@ -1,0 +1,28 @@
+# Lua
+luac.out
+*.src.rock
+*.zip
+*.tar.gz
+
+# Build artifacts
+*.o
+*.so
+*.dylib
+*.a
+motebase-bin*
+.build/
+
+# Local files
+*.local.md
+*.local.sh
+.DS_Store
+
+# Database
+data/
+
+# Symlinked style guides
+docs/LUA.style.md
+
+# Archived old implementation (lua-http version)
+motebase-old/
+*.old
