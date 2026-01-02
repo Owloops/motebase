@@ -21,8 +21,6 @@ local function parse_args(args)
             i = i + 2
         elseif a == "--help" then
             return nil, "help"
-        elseif a == "--version" or a == "-v" then
-            return nil, "version"
         else
             i = i + 1
         end
@@ -39,7 +37,6 @@ local function print_help()
     print("  -d, --db <path>       Database file path (default: motebase.db)")
     print("  -s, --secret <key>    JWT secret key")
     print("  --help                Show this help message")
-    print("  -v, --version         Show version")
     print("")
     print("Environment variables:")
     print("  MOTEBASE_SECRET       JWT secret key")
@@ -47,18 +44,11 @@ local function print_help()
     print("  MOTEBASE_LOG          Enable logging (0 to disable)")
 end
 
-local function print_version()
-    print("motebase 0.1.0")
-end
-
 local function main()
     local config, action = parse_args(arg)
 
     if action == "help" then
         print_help()
-        os.exit(0)
-    elseif action == "version" then
-        print_version()
         os.exit(0)
     end
 
