@@ -57,16 +57,32 @@ local function main()
 
     local srv, srv_config = motebase.start(config)
     if not srv then
-        io.stderr:write(output.color("red") .. "✗" .. output.reset() .. " failed to start: " .. tostring(srv_config) .. "\n")
+        io.stderr:write(
+            output.color("red") .. "✗" .. output.reset() .. " failed to start: " .. tostring(srv_config) .. "\n"
+        )
         os.exit(1)
     end
 
-    io.stderr:write(output.color("green") .. "✓" .. output.reset() .. " motebase running on http://" .. srv_config.host .. ":" .. srv_config.port .. "\n")
+    io.stderr:write(
+        output.color("green")
+            .. "✓"
+            .. output.reset()
+            .. " motebase running on http://"
+            .. srv_config.host
+            .. ":"
+            .. srv_config.port
+            .. "\n"
+    )
     io.stderr:write(output.color("blue") .. "→" .. output.reset() .. " database: " .. srv_config.db_path .. "\n")
     io.stderr:write(output.color("bright_black") .. "→" .. output.reset() .. " press Ctrl+C to stop\n")
 
     if srv_config.secret == "change-me-in-production" then
-        io.stderr:write(output.color("yellow") .. "!" .. output.reset() .. " using default JWT secret - set MOTEBASE_SECRET in production\n")
+        io.stderr:write(
+            output.color("yellow")
+                .. "!"
+                .. output.reset()
+                .. " using default JWT secret - set MOTEBASE_SECRET in production\n"
+        )
     end
 
     srv:run()
