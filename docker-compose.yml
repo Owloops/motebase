@@ -1,0 +1,26 @@
+services:
+  mote:
+    build: .
+    environment:
+      - MOTEBASE_DB=/data/motebase.db
+      - MOTEBASE_SECRET=${MOTEBASE_SECRET:-change-me-in-production}
+    volumes:
+      - ./data:/data
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+    depends_on:
+      - mote
+    restart: unless-stopped
+
+volumes:
+  caddy_data:
