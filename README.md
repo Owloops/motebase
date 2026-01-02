@@ -69,7 +69,7 @@ chmod +x motebase
 ### Docker
 
 ```bash
-docker pull ghcr.io/pgagnidze/motebase:latest
+docker pull ghcr.io/owloops/motebase:latest
 ```
 
 See [Deployment](#deployment) for docker-compose with automatic HTTPS.
