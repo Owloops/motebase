@@ -2,7 +2,7 @@ local db = require("motebase.db")
 local schema = require("motebase.schema")
 local cjson = require("cjson")
 local files = require("motebase.files")
-local multipart = require("motebase.multipart")
+local multipart = require("motebase.parser.multipart")
 
 local collections = {}
 

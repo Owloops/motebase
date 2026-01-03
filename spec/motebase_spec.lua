@@ -7,7 +7,7 @@ local jwt = require("motebase.jwt")
 local router = require("motebase.router")
 local collections = require("motebase.collections")
 local auth = require("motebase.auth")
-local multipart = require("motebase.multipart")
+local multipart = require("motebase.parser.multipart")
 local files = require("motebase.files")
 local storage = require("motebase.storage")
 

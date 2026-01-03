@@ -2,6 +2,7 @@ local db = require("motebase.db")
 local jwt = require("motebase.jwt")
 local crypto = require("motebase.crypto")
 local log = require("motebase.utils.log")
+local email_parser = require("motebase.parser.email")
 
 local auth = {}
 
@@ -29,7 +30,7 @@ end
 function auth.register(email, password)
     if not email or not password then return nil, "email and password required" end
 
-    if not email:match("^[%w._%+-]+@[%w.-]+%.[%w]+$") then return nil, "invalid email format" end
+    if not email_parser.is_valid(email) then return nil, "invalid email format" end
 
     if #password < 8 then return nil, "password must be at least 8 characters" end
 

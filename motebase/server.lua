@@ -2,6 +2,7 @@ local socket = require("socket")
 local router = require("motebase.router")
 local middleware = require("motebase.middleware")
 local log = require("motebase.utils.log")
+local http_parser = require("motebase.parser.http")
 
 local server = {}
 
@@ -100,8 +101,7 @@ end
 -- http --
 
 local function parse_request_line(line)
-    local method, path, version = line:match("^(%u+)%s+(%S+)%s+HTTP/([%d%.]+)")
-    return method, path, version
+    return http_parser.parse_request_line(line)
 end
 
 local function parse_headers(wrapper)
@@ -110,7 +110,7 @@ local function parse_headers(wrapper)
         local line, err = receive_line(wrapper)
         if err then return nil, err end
         if not line or line == "" then break end
-        local name, value = line:match("^([^:]+):%s*(.*)$")
+        local name, value = http_parser.parse_header(line)
         if name then headers[name:lower()] = value end
     end
     return headers
@@ -188,8 +188,7 @@ local function handle_client(wrapper, config)
         return true
     end
 
-    local path_only = path:match("^([^?]+)") or path
-    local query_string = path:match("%?(.+)$")
+    local path_only, query_string = http_parser.parse_path(path)
 
     local ctx = create_context(method, path_only, headers, body, config)
     ctx.query_string = query_string

@@ -22,6 +22,7 @@ dependencies = {
     "lsqlite3complete >= 0.9",
     "lua-cjson >= 2.1",
     "luafilesystem >= 1.8",
+    "lpeg >= 1.0",
 }
 
 test_dependencies = {
@@ -49,7 +50,11 @@ build = {
         ["motebase.files"] = "motebase/files.lua",
         ["motebase.jwt"] = "motebase/jwt.lua",
         ["motebase.middleware"] = "motebase/middleware.lua",
-        ["motebase.multipart"] = "motebase/multipart.lua",
+        ["motebase.parser"] = "motebase/parser/init.lua",
+        ["motebase.parser.email"] = "motebase/parser/email.lua",
+        ["motebase.parser.http"] = "motebase/parser/http.lua",
+        ["motebase.parser.multipart"] = "motebase/parser/multipart.lua",
+        ["motebase.parser.primitives"] = "motebase/parser/primitives.lua",
         ["motebase.router"] = "motebase/router.lua",
         ["motebase.schema"] = "motebase/schema.lua",
         ["motebase.server"] = "motebase/server.lua",

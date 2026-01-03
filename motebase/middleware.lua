@@ -1,7 +1,7 @@
 local cjson = require("cjson")
 local jwt = require("motebase.jwt")
 local log = require("motebase.utils.log")
-local multipart = require("motebase.multipart")
+local multipart = require("motebase.parser.multipart")
 
 local encode, decode = cjson.encode, cjson.decode
 

@@ -1,3 +1,5 @@
+local email_parser = require("motebase.parser.email")
+
 local schema = {}
 
 local validators = {
@@ -22,8 +24,7 @@ local validators = {
 
     email = function(value)
         if type(value) ~= "string" then return nil, "expected string" end
-        if not value:match("^[%w._%+-]+@[%w.-]+%.[%w]+$") then return nil, "invalid email format" end
-        return value
+        return email_parser.validate(value)
     end,
 
     text = function(value)
