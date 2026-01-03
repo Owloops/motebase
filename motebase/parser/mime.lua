@@ -1,5 +1,4 @@
--- RFC-2045 MIME primitives
--- Patterns from Sean Conner's LPeg-Parsers (LGPL-3.0)
+-- RFC-2045 MIME primitives (LGPL-3.0, Sean Conner)
 
 local lpeg = require("lpeg")
 local abnf = require("motebase.parser.abnf")
@@ -26,11 +25,12 @@ local parameters = Cf(Ct("") * (P(";") * abnf.WSP ^ 0 * Cg(itoken * P("=") * val
     return acc
 end)
 local type_subtype = Cs(ichar ^ 1 * P("/") * ichar ^ 1)
-local grammar = Ct(Cg(type_subtype, "type") * Cg(parameters, "parameters"))
+
+mime.grammar = Ct(Cg(type_subtype, "type") * Cg(parameters, "parameters"))
 
 function mime.parse(content_type)
     if not content_type then return nil end
-    return lpeg.match(grammar, content_type)
+    return lpeg.match(mime.grammar, content_type)
 end
 
 return mime

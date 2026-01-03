@@ -105,19 +105,18 @@ local function parse_request_line(line)
 end
 
 local function parse_headers(wrapper)
-    local headers = {}
+    local header_lines = {}
     while true do
         local line, err = receive_line(wrapper)
         if err then return nil, err end
         if not line or line == "" then break end
-        local name, value = http_parser.parse_header(line)
-        if name then headers[name:lower()] = value end
+        header_lines[#header_lines + 1] = line
     end
-    return headers
+    return http_parser.parse_headers(table.concat(header_lines, "\n"))
 end
 
 local function read_body(wrapper, headers)
-    local content_length = tonumber(headers["content-length"])
+    local content_length = headers["content-length"]
     if not content_length or content_length == 0 then return nil end
     return receive_bytes(wrapper, content_length)
 end
@@ -160,8 +159,8 @@ local function handle_client(wrapper, config)
     local line, err = receive_line(wrapper)
     if err then return false, err end
 
-    local method, path, _ = parse_request_line(line)
-    if not method then
+    local req = parse_request_line(line)
+    if not req then
         send_response(wrapper, 400, {}, "Bad Request")
         return false, "bad request"
     end
@@ -172,11 +171,14 @@ local function handle_client(wrapper, config)
     local body_raw, body_err = read_body(wrapper, headers)
     if body_err then return false, body_err end
 
-    if middleware.is_preflight(method) then
+    local path = req.location.path or "/"
+    local query = req.location.query
+
+    if middleware.is_preflight(req.method) then
         local cors = middleware.cors_headers()
         cors["Content-Length"] = "0"
         send_response(wrapper, 204, cors, nil)
-        log.info("http", method .. " " .. path .. " 204")
+        log.info("http", req.method .. " " .. path .. " 204")
         return true
     end
 
@@ -188,11 +190,9 @@ local function handle_client(wrapper, config)
         return true
     end
 
-    local path_only, query_string = http_parser.parse_path(path)
-
-    local ctx = create_context(method, path_only, headers, body, config)
-    ctx.query_string = query_string
-    ctx.full_path = path
+    local ctx = create_context(req.method, path, headers, body, config)
+    ctx.query_string = query
+    ctx.full_path = path .. (query and ("?" .. query) or "")
     ctx.is_multipart = is_multipart
 
     local auth_payload, auth_err = middleware.extract_auth(headers, config.secret)
@@ -202,12 +202,12 @@ local function handle_client(wrapper, config)
         ctx.auth_error = auth_err
     end
 
-    local handler, params = router.match(method, path_only)
+    local handler, params = router.match(req.method, path)
     if not handler then
         local cors = middleware.cors_headers()
         cors["Content-Type"] = "application/json"
         send_response(wrapper, 404, cors, middleware.encode_json({ error = "not found" }))
-        log.info("http", method .. " " .. path .. " 404")
+        log.info("http", req.method .. " " .. path .. " 404")
         return true
     end
 
@@ -228,7 +228,7 @@ local function handle_client(wrapper, config)
     end
     local status = ctx._status or 200
     send_response(wrapper, status, resp_headers, ctx._response_body)
-    log.info("http", method .. " " .. path .. " " .. status)
+    log.info("http", req.method .. " " .. path .. " " .. status)
     return true
 end
 

@@ -1,5 +1,4 @@
--- RFC-5234 ABNF core rules
--- Patterns from Sean Conner's LPeg-Parsers (LGPL-3.0)
+-- RFC-5234 ABNF core rules (LGPL-3.0, Sean Conner)
 
 local lpeg = require("lpeg")
 

@@ -4,10 +4,9 @@ local lpeg = require("lpeg")
 local abnf = require("motebase.parser.abnf")
 local mime = require("motebase.parser.mime")
 
-local multipart = {}
+local C, Cf, Cg, Ct, P = lpeg.C, lpeg.Cf, lpeg.Cg, lpeg.Ct, lpeg.P
 
-local C, Cf, Cg, Ct = lpeg.C, lpeg.Cf, lpeg.Cg, lpeg.Ct
-local P = lpeg.P
+local multipart = {}
 
 local param = Cg(C(mime.token) * P("=") * mime.param_value)
 local params = Cf(Ct("") * (P(";") * abnf.WSP ^ 0 * param) ^ 0, rawset)
