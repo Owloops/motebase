@@ -1,5 +1,5 @@
 local lpeg = require("lpeg")
-local prim = require("motebase.parser.primitives")
+local abnf = require("motebase.parser.abnf")
 
 local multipart = {}
 
@@ -14,12 +14,8 @@ local C, Cf, Cg, Ct = lpeg.C, lpeg.Cf, lpeg.Cg, lpeg.Ct
 -- disposition grammar --
 
 local function build_disposition_grammar()
-    local LWSP = prim.LWSP
-    local token = prim.token
-    local param_value = prim.param_value
-
-    local param = Cg(C(token) * P("=") * param_value)
-    local params = Cf(Ct("") * (P(";") * LWSP ^ 0 * param) ^ 0, rawset)
+    local param = Cg(C(abnf.token) * P("=") * abnf.param_value)
+    local params = Cf(Ct("") * (P(";") * abnf.WSP ^ 0 * param) ^ 0, rawset)
 
     return P("form-data") * params
 end
@@ -29,15 +25,11 @@ local disposition_grammar = build_disposition_grammar()
 -- header grammar --
 
 local function build_header_grammar()
-    local CRLF = prim.CRLF
-    local LF = prim.LF
-    local LWSP = prim.LWSP
-    local token = prim.token
-    local line_end = CRLF + LF
+    local line_end = abnf.CRLF
 
-    local header_name = C(token)
+    local header_name = C(abnf.token)
     local header_value = C((P(1) - line_end) ^ 0)
-    local header = Cg(header_name * P(":") * LWSP ^ 0 * header_value)
+    local header = Cg(header_name * P(":") * abnf.WSP ^ 0 * header_value)
     local headers = Cf(Ct("") * (header * line_end) ^ 0, rawset)
 
     return headers
@@ -50,7 +42,7 @@ local header_grammar = build_header_grammar()
 function multipart.get_boundary(content_type)
     if not content_type then return nil end
 
-    local boundary_pattern = P("boundary=") * prim.param_value
+    local boundary_pattern = P("boundary=") * abnf.param_value
     local skip = (P(1) - P("boundary=")) ^ 0
     local grammar = skip * boundary_pattern
 

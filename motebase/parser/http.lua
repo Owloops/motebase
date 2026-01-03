@@ -1,5 +1,5 @@
 local lpeg = require("lpeg")
-local prim = require("motebase.parser.primitives")
+local abnf = require("motebase.parser.abnf")
 
 local http = {}
 
@@ -27,14 +27,11 @@ local request_line_grammar = build_request_line_grammar()
 -- header grammar --
 
 local function build_header_grammar()
-    local CRLF = prim.CRLF
-    local LF = prim.LF
-    local LWSP = prim.LWSP
-    local line_end = CRLF + LF
+    local line_end = abnf.CRLF
 
     local header_name = C((P(1) - P(":") - line_end) ^ 1)
     local header_value = C((P(1) - line_end) ^ 0)
-    local header = Cg(header_name * P(":") * LWSP ^ 0 * header_value)
+    local header = Cg(header_name * P(":") * abnf.WSP ^ 0 * header_value)
 
     return Cf(Ct("") * (header * line_end) ^ 0, function(t, k, v)
         t[k:lower()] = v
@@ -65,14 +62,11 @@ end
 function http.parse_header(line)
     if not line then return nil end
 
-    local CRLF = prim.CRLF
-    local LF = prim.LF
-    local LWSP = prim.LWSP
-    local line_end = CRLF + LF
+    local line_end = abnf.CRLF
 
     local header_name = C((P(1) - P(":") - line_end) ^ 1)
     local header_value = C((P(1) - line_end) ^ 0)
-    local single_header = header_name * P(":") * LWSP ^ 0 * header_value
+    local single_header = header_name * P(":") * abnf.WSP ^ 0 * header_value
 
     return lpeg.match(single_header, line)
 end
