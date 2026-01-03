@@ -280,6 +280,11 @@ luacheck .                   # Lint
 stylua .                     # Format
 ```
 
+## Credits
+
+- [LPeg-Parsers](https://github.com/spc476/LPeg-Parsers) by Sean Conner (LGPL-3.0)
+- [lua-hashings](https://github.com/user-none/lua-hashings) by John Schember (MIT)
+
 ## License
 
 [MIT](LICENSE)
