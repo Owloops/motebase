@@ -41,6 +41,8 @@ jobs:
           luarocks install luasocket
           luarocks install lsqlite3complete
           luarocks install lua-cjson
+          luarocks install luafilesystem
+          luarocks install lpeg
           luarocks install busted
       - run: busted
 
