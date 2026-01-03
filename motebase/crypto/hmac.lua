@@ -1,3 +1,5 @@
+-- HMAC (MIT, John Schember)
+
 local bit = require("motebase.crypto.bit")
 local bxor = bit.bxor
 

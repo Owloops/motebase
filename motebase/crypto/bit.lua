@@ -1,3 +1,5 @@
+-- Bit operations (MIT, John Schember)
+
 local bit
 
 if _VERSION >= "Lua 5.3" then

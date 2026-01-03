@@ -1,3 +1,5 @@
+-- SHA-256 (MIT, John Schember)
+
 local bit = require("motebase.crypto.bit")
 local band, bor, bxor, bnot, lshift, rshift = bit.band, bit.bor, bit.bxor, bit.bnot, bit.lshift, bit.rshift
 
