@@ -3,6 +3,7 @@ local server = require("motebase.server")
 local router = require("motebase.router")
 local collections = require("motebase.collections")
 local auth = require("motebase.auth")
+local files = require("motebase.files")
 
 local motebase = {}
 
@@ -83,7 +84,10 @@ end
 
 local function handle_create_record(ctx)
     local name = ctx.params.name
-    local record, err = collections.create_record(name, ctx.body)
+    local multipart_parts = ctx.is_multipart and ctx.body or nil
+    local json_data = ctx.is_multipart and {} or ctx.body
+
+    local record, err = collections.create_record(name, json_data, multipart_parts)
     if not record then
         if type(err) == "table" then
             server.json(ctx, 400, { errors = err })
@@ -104,7 +108,10 @@ local function handle_update_record(ctx)
         return
     end
 
-    local record, err = collections.update_record(name, id, ctx.body)
+    local multipart_parts = ctx.is_multipart and ctx.body or nil
+    local json_data = ctx.is_multipart and {} or ctx.body
+
+    local record, err = collections.update_record(name, id, json_data, multipart_parts)
     if not record then
         if type(err) == "table" then
             server.json(ctx, 400, { errors = err })
@@ -165,6 +172,90 @@ local function handle_me(ctx)
     server.json(ctx, 200, user)
 end
 
+local function handle_file_token(ctx)
+    if not ctx.user then
+        server.error(ctx, 401, ctx.auth_error or "unauthorized")
+        return
+    end
+
+    local token, expires = files.create_token()
+    if not token then
+        server.error(ctx, 500, "failed to create token")
+        return
+    end
+
+    server.json(ctx, 200, { token = token, expires = expires })
+end
+
+local function is_file_protected(collection_name, record, filename)
+    local collection = collections.get(collection_name)
+    if not collection or not collection.schema then return false end
+
+    for field_name, field_def in pairs(collection.schema) do
+        if field_def.type == "file" and field_def.protected then
+            local field_data = record[field_name]
+            if field_data then
+                local file_info = files.deserialize(field_data)
+                if file_info and file_info.filename == filename then return true end
+            end
+        end
+    end
+
+    return false
+end
+
+local function get_token_from_query(query_string)
+    if not query_string then return nil end
+    local token = query_string:match("token=([^&]+)")
+    return token
+end
+
+local function handle_file_download(ctx)
+    local collection_name = ctx.params.collection
+    local record_id = tonumber(ctx.params.record)
+    local filename = ctx.params.filename
+
+    if not record_id then
+        server.error(ctx, 400, "invalid record id")
+        return
+    end
+
+    local collection = collections.get(collection_name)
+    if not collection then
+        server.error(ctx, 404, "collection not found")
+        return
+    end
+
+    local record = collections.get_record(collection_name, record_id)
+    if not record then
+        server.error(ctx, 404, "not found")
+        return
+    end
+
+    if is_file_protected(collection_name, record, filename) then
+        local token = get_token_from_query(ctx.query_string)
+        if not token then
+            server.error(ctx, 401, "file token required")
+            return
+        end
+
+        local payload, err = files.verify_token(token)
+        if not payload then
+            server.error(ctx, 401, err or "invalid token")
+            return
+        end
+    end
+
+    local data = files.read(collection_name, record_id, filename)
+    if not data then
+        server.error(ctx, 404, "not found")
+        return
+    end
+
+    local mime_type = files.detect_mime_type(filename)
+    server.file(ctx, 200, data, filename, mime_type)
+end
+
 -- routes --
 
 local function setup_routes()
@@ -183,6 +274,9 @@ local function setup_routes()
     router.post("/api/auth/register", handle_register)
     router.post("/api/auth/login", handle_login)
     router.get("/api/auth/me", handle_me)
+
+    router.post("/api/files/token", handle_file_token)
+    router.get("/api/files/:collection/:record/:filename", handle_file_download)
 end
 
 -- public api --
@@ -190,6 +284,8 @@ end
 function motebase.start(config)
     config = config or {}
     config.db_path = config.db_path or os.getenv("MOTEBASE_DB") or "motebase.db"
+    config.storage_path = config.storage_path or os.getenv("MOTEBASE_STORAGE") or "./storage"
+    config.max_file_size = config.max_file_size or tonumber(os.getenv("MOTEBASE_MAX_FILE_SIZE")) or (10 * 1024 * 1024)
 
     local ok, err = db.open(config.db_path)
     if not ok then return nil, err end
@@ -199,6 +295,14 @@ function motebase.start(config)
 
     local auth_ok, auth_err = auth.init()
     if not auth_ok then return nil, auth_err end
+
+    files.configure({
+        storage_path = config.storage_path,
+        max_file_size = config.max_file_size,
+        secret = config.secret or os.getenv("MOTEBASE_SECRET") or "change-me-in-production",
+    })
+    local files_ok, files_err = files.init()
+    if not files_ok then return nil, files_err end
 
     setup_routes()
 

@@ -35,6 +35,13 @@ local validators = {
         if type(value) == "table" then return value end
         return nil, "expected object"
     end,
+
+    file = function(value)
+        if value == nil then return nil end
+        if type(value) == "table" and value.filename and value.size then return value end
+        if type(value) == "string" then return value end
+        return nil, "invalid file"
+    end,
 }
 
 function schema.validate_field(value, field_type, required)
@@ -77,6 +84,7 @@ function schema.field_to_sql_type(field_type)
         number = "REAL",
         boolean = "INTEGER",
         json = "TEXT",
+        file = "TEXT",
     }
     return types[field_type] or "TEXT"
 end

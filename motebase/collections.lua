@@ -1,8 +1,18 @@
 local db = require("motebase.db")
 local schema = require("motebase.schema")
 local cjson = require("cjson")
+local files = require("motebase.files")
+local multipart = require("motebase.multipart")
 
 local collections = {}
+
+local function get_file_fields(collection_schema)
+    local file_fields = {}
+    for field_name, def in pairs(collection_schema) do
+        if def.type == "file" then file_fields[field_name] = true end
+    end
+    return file_fields
+end
 
 function collections.init()
     return db.exec([[
@@ -80,50 +90,107 @@ function collections.get_record(name, id)
     return rows[1]
 end
 
-function collections.create_record(name, data)
+function collections.create_record(name, data, multipart_parts)
     local collection = collections.get(name)
     if not collection then return nil, "collection not found" end
 
-    local validated, errors = schema.validate(data, collection.schema)
-    if errors or not validated then return nil, errors end
+    local file_fields = get_file_fields(collection.schema)
+    local form_data = {}
 
-    local fields = {}
-    local placeholders = {}
-    local values = {}
-
-    for field_name, value in pairs(validated) do
-        fields[#fields + 1] = field_name
-        placeholders[#placeholders + 1] = "?"
-        if type(value) == "table" then
-            values[#values + 1] = cjson.encode(value)
-        else
-            values[#values + 1] = value
+    if multipart_parts then
+        for field_name, part in pairs(multipart_parts) do
+            if not multipart.is_file(part) and not file_fields[field_name] then form_data[field_name] = part.data end
         end
     end
 
-    if #fields == 0 then return nil, "no valid fields provided" end
+    for k, v in pairs(data or {}) do
+        if not file_fields[k] then form_data[k] = v end
+    end
+
+    local validated, errors = schema.validate(form_data, collection.schema)
+    if errors or not validated then return nil, errors end
+
+    local insert_fields = {}
+    local placeholders = {}
+    local insert_values = {}
+
+    for field_name, value in pairs(validated) do
+        insert_fields[#insert_fields + 1] = field_name
+        placeholders[#placeholders + 1] = "?"
+        if type(value) == "table" then
+            insert_values[#insert_values + 1] = cjson.encode(value)
+        else
+            insert_values[#insert_values + 1] = value
+        end
+    end
 
     local sql = "INSERT INTO "
         .. name
         .. " ("
-        .. table.concat(fields, ", ")
+        .. table.concat(insert_fields, ", ")
         .. ") VALUES ("
         .. table.concat(placeholders, ", ")
         .. ")"
-    local id, err = db.insert(sql, values)
+    local id, err = db.insert(sql, insert_values)
     if not id then return nil, err end
+
+    if multipart_parts then
+        local file_updates = {}
+        for field_name in pairs(file_fields) do
+            local part = multipart_parts[field_name]
+            if part and multipart.is_file(part) then
+                local unique_filename = files.generate_filename(part.filename)
+                local mime_type = files.detect_mime_type(part.filename)
+
+                local file_info, save_err = files.save(name, id, unique_filename, part.data, mime_type)
+                if not file_info then
+                    db.run("DELETE FROM " .. name .. " WHERE id = ?", { id })
+                    files.delete_record_files(name, id)
+                    return nil, "file upload failed: " .. save_err
+                end
+
+                file_updates[field_name] = files.serialize(file_info)
+            end
+        end
+
+        if next(file_updates) then
+            local sets = {}
+            local update_values = {}
+            for field_name, value in pairs(file_updates) do
+                sets[#sets + 1] = field_name .. " = ?"
+                update_values[#update_values + 1] = value
+            end
+            update_values[#update_values + 1] = id
+
+            local update_sql = "UPDATE " .. name .. " SET " .. table.concat(sets, ", ") .. " WHERE id = ?"
+            db.run(update_sql, update_values)
+        end
+    end
 
     return collections.get_record(name, id)
 end
 
-function collections.update_record(name, id, data)
+function collections.update_record(name, id, data, multipart_parts)
     local collection = collections.get(name)
     if not collection then return nil, "collection not found" end
 
     local existing = collections.get_record(name, id)
     if not existing then return nil, "record not found" end
 
-    local validated, errors = schema.validate(data, collection.schema)
+    local file_fields = get_file_fields(collection.schema)
+    local form_data = {}
+
+    if multipart_parts then
+        for field_name, part in pairs(multipart_parts) do
+            if not multipart.is_file(part) and not file_fields[field_name] then form_data[field_name] = part.data end
+        end
+    end
+
+    for k, v in pairs(data or {}) do
+        if not file_fields[k] then form_data[k] = v end
+    end
+
+    local validated, errors = schema.validate(form_data, collection.schema)
     if errors or not validated then return nil, errors end
 
     local sets = {}
@@ -135,6 +202,28 @@ function collections.update_record(name, id, data)
             values[#values + 1] = cjson.encode(value)
         else
             values[#values + 1] = value
+        end
+    end
+
+    if multipart_parts then
+        for field_name in pairs(file_fields) do
+            local part = multipart_parts[field_name]
+            if part and multipart.is_file(part) then
+                local old_file_data = existing[field_name]
+                if old_file_data and old_file_data ~= "" then
+                    local old_file = files.deserialize(old_file_data)
+                    if old_file and old_file.filename then files.delete(name, id, old_file.filename) end
+                end
+
+                local unique_filename = files.generate_filename(part.filename)
+                local mime_type = files.detect_mime_type(part.filename)
+
+                local file_info, save_err = files.save(name, id, unique_filename, part.data, mime_type)
+                if not file_info then return nil, "file upload failed: " .. save_err end
+
+                sets[#sets + 1] = field_name .. " = ?"
+                values[#values + 1] = files.serialize(file_info)
+            end
         end
     end
 
@@ -157,6 +246,8 @@ function collections.delete_record(name, id)
     local changes, err = db.run("DELETE FROM " .. name .. " WHERE id = ?", { id })
     if err then return nil, err end
     if changes == 0 then return nil, "record not found" end
+
+    files.delete_record_files(name, id)
 
     return true
 end

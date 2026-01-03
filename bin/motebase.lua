@@ -19,6 +19,12 @@ local function parse_args(args)
         elseif a == "--secret" or a == "-s" then
             config.secret = args[i + 1]
             i = i + 2
+        elseif a == "--storage" then
+            config.storage_path = args[i + 1]
+            i = i + 2
+        elseif a == "--max-file-size" then
+            config.max_file_size = tonumber(args[i + 1])
+            i = i + 2
         elseif a == "--help" then
             return nil, "help"
         else
@@ -32,16 +38,20 @@ local function print_help()
     print("Usage: motebase [options]")
     print("")
     print("Options:")
-    print("  -p, --port <port>     Port to listen on (default: 8080)")
-    print("  -h, --host <host>     Host to bind to (default: 0.0.0.0)")
-    print("  -d, --db <path>       Database file path (default: motebase.db)")
-    print("  -s, --secret <key>    JWT secret key")
-    print("  --help                Show this help message")
+    print("  -p, --port <port>       Port to listen on (default: 8080)")
+    print("  -h, --host <host>       Host to bind to (default: 0.0.0.0)")
+    print("  -d, --db <path>         Database file path (default: motebase.db)")
+    print("  -s, --secret <key>      JWT secret key")
+    print("  --storage <path>        File storage directory (default: ./storage)")
+    print("  --max-file-size <bytes> Max upload size in bytes (default: 10485760)")
+    print("  --help                  Show this help message")
     print("")
     print("Environment variables:")
-    print("  MOTEBASE_SECRET       JWT secret key")
-    print("  MOTEBASE_DB           Database file path")
-    print("  MOTEBASE_LOG          Enable logging (0 to disable)")
+    print("  MOTEBASE_SECRET         JWT secret key")
+    print("  MOTEBASE_DB             Database file path")
+    print("  MOTEBASE_STORAGE        File storage directory")
+    print("  MOTEBASE_MAX_FILE_SIZE  Max upload size in bytes")
+    print("  MOTEBASE_LOG            Enable logging (0 to disable)")
 end
 
 local function main()
@@ -74,6 +84,7 @@ local function main()
             .. "\n"
     )
     io.stderr:write(output.color("blue") .. "→" .. output.reset() .. " database: " .. srv_config.db_path .. "\n")
+    io.stderr:write(output.color("blue") .. "→" .. output.reset() .. " storage: " .. srv_config.storage_path .. "\n")
     io.stderr:write(output.color("bright_black") .. "→" .. output.reset() .. " press Ctrl+C to stop\n")
 
     if srv_config.secret == "change-me-in-production" then

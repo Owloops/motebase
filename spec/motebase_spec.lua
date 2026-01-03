@@ -1,11 +1,30 @@
 package.path = package.path .. ";?.lua;?/init.lua"
 
+local lfs = require("lfs")
 local db = require("motebase.db")
 local schema = require("motebase.schema")
 local jwt = require("motebase.jwt")
 local router = require("motebase.router")
 local collections = require("motebase.collections")
 local auth = require("motebase.auth")
+local multipart = require("motebase.multipart")
+local files = require("motebase.files")
+local storage = require("motebase.storage")
+
+local function rmdir_recursive(path)
+    local attr = lfs.attributes(path)
+    if not attr then return true end
+
+    if attr.mode == "directory" then
+        for entry in lfs.dir(path) do
+            if entry ~= "." and entry ~= ".." then rmdir_recursive(path .. "/" .. entry) end
+        end
+        lfs.rmdir(path)
+    else
+        os.remove(path)
+    end
+    return true
+end
 
 describe("motebase", function()
     describe("db", function()
@@ -499,6 +518,370 @@ describe("motebase", function()
         it("should return nil for non-existent user", function()
             local user = auth.get_user(999)
             assert.is_nil(user)
+        end)
+    end)
+
+    describe("multipart", function()
+        it("should detect multipart content type", function()
+            assert.is_true(multipart.is_multipart("multipart/form-data; boundary=----WebKitFormBoundary"))
+            assert.is_falsy(multipart.is_multipart("application/json"))
+            assert.is_falsy(multipart.is_multipart(nil))
+        end)
+
+        it("should extract boundary from content type", function()
+            local boundary = multipart.get_boundary("multipart/form-data; boundary=----WebKitFormBoundary")
+            assert.are.equal("----WebKitFormBoundary", boundary)
+        end)
+
+        it("should parse simple form field", function()
+            local boundary = "----TestBoundary"
+            local body = "------TestBoundary\r\n"
+                .. 'Content-Disposition: form-data; name="title"\r\n'
+                .. "\r\n"
+                .. "Hello World\r\n"
+                .. "------TestBoundary--\r\n"
+
+            local parts = multipart.parse(body, boundary)
+            assert.is_truthy(parts)
+            assert.is_truthy(parts.title)
+            assert.are.equal("Hello World", parts.title.data)
+        end)
+
+        it("should parse file upload", function()
+            local boundary = "----TestBoundary"
+            local body = "------TestBoundary\r\n"
+                .. 'Content-Disposition: form-data; name="document"; filename="test.txt"\r\n'
+                .. "Content-Type: text/plain\r\n"
+                .. "\r\n"
+                .. "file content here\r\n"
+                .. "------TestBoundary--\r\n"
+
+            local parts = multipart.parse(body, boundary)
+            assert.is_truthy(parts)
+            assert.is_truthy(parts.document)
+            assert.are.equal("test.txt", parts.document.filename)
+            assert.are.equal("text/plain", parts.document.content_type)
+            assert.are.equal("file content here", parts.document.data)
+            assert.is_true(multipart.is_file(parts.document))
+        end)
+
+        it("should parse mixed fields and files", function()
+            local boundary = "----TestBoundary"
+            local body = "------TestBoundary\r\n"
+                .. 'Content-Disposition: form-data; name="title"\r\n'
+                .. "\r\n"
+                .. "My Document\r\n"
+                .. "------TestBoundary\r\n"
+                .. 'Content-Disposition: form-data; name="file"; filename="doc.pdf"\r\n'
+                .. "Content-Type: application/pdf\r\n"
+                .. "\r\n"
+                .. "PDF CONTENT\r\n"
+                .. "------TestBoundary--\r\n"
+
+            local parts = multipart.parse(body, boundary)
+            assert.is_truthy(parts.title)
+            assert.is_truthy(parts.file)
+            assert.are.equal("My Document", parts.title.data)
+            assert.are.equal("doc.pdf", parts.file.filename)
+            assert.is_falsy(multipart.is_file(parts.title))
+            assert.is_true(multipart.is_file(parts.file))
+        end)
+
+        it("should identify file parts", function()
+            local file_part = { name = "doc", filename = "test.pdf", data = "content" }
+            local field_part = { name = "title", data = "Hello" }
+
+            assert.is_true(multipart.is_file(file_part))
+            assert.is_falsy(multipart.is_file(field_part))
+            assert.is_falsy(multipart.is_file(nil))
+        end)
+    end)
+
+    describe("files", function()
+        before_each(function()
+            files.configure({
+                storage_path = "/tmp/motebase_test_storage",
+                max_file_size = 1024 * 1024,
+            })
+            files.init()
+        end)
+
+        after_each(function()
+            rmdir_recursive("/tmp/motebase_test_storage")
+        end)
+
+        describe("mime detection", function()
+            it("should detect common mime types", function()
+                assert.are.equal("image/png", files.detect_mime_type("photo.png"))
+                assert.are.equal("image/jpeg", files.detect_mime_type("photo.jpg"))
+                assert.are.equal("image/jpeg", files.detect_mime_type("photo.jpeg"))
+                assert.are.equal("image/gif", files.detect_mime_type("animation.gif"))
+                assert.are.equal("application/pdf", files.detect_mime_type("document.pdf"))
+                assert.are.equal("text/plain", files.detect_mime_type("readme.txt"))
+                assert.are.equal("text/html", files.detect_mime_type("page.html"))
+                assert.are.equal("text/css", files.detect_mime_type("styles.css"))
+                assert.are.equal("application/javascript", files.detect_mime_type("app.js"))
+                assert.are.equal("application/json", files.detect_mime_type("data.json"))
+            end)
+
+            it("should handle case insensitive extensions", function()
+                assert.are.equal("image/png", files.detect_mime_type("PHOTO.PNG"))
+                assert.are.equal("application/pdf", files.detect_mime_type("Doc.PDF"))
+            end)
+
+            it("should return octet-stream for unknown types", function()
+                assert.are.equal("application/octet-stream", files.detect_mime_type("file.xyz"))
+                assert.are.equal("application/octet-stream", files.detect_mime_type("noextension"))
+            end)
+        end)
+
+        describe("filename sanitization", function()
+            it("should keep valid filenames", function()
+                assert.are.equal("document.pdf", files.sanitize_filename("document.pdf"))
+                assert.are.equal("my-file_v2.txt", files.sanitize_filename("my-file_v2.txt"))
+            end)
+
+            it("should extract filename from path", function()
+                assert.are.equal("name.txt", files.sanitize_filename("file/name.txt"))
+                assert.are.equal("name.txt", files.sanitize_filename("file\\name.txt"))
+            end)
+
+            it("should replace special characters with underscore", function()
+                assert.are.equal("file_name.txt", files.sanitize_filename("file:name.txt"))
+                assert.are.equal("hello_world.pdf", files.sanitize_filename("hello world.pdf"))
+            end)
+
+            it("should handle path traversal attempts", function()
+                assert.are.equal("file.txt", files.sanitize_filename("../../../file.txt"))
+                assert.are.equal("_...file.txt", files.sanitize_filename("....file.txt"))
+            end)
+
+            it("should handle leading dots", function()
+                assert.are.equal("_htaccess", files.sanitize_filename(".htaccess"))
+                assert.are.equal("_gitignore", files.sanitize_filename(".gitignore"))
+            end)
+        end)
+
+        describe("filename generation", function()
+            it("should add random suffix", function()
+                local name1 = files.generate_filename("test.pdf")
+                local name2 = files.generate_filename("test.pdf")
+
+                assert.is_truthy(name1:match("^test_[a-f0-9]+%.pdf$"))
+                assert.is_truthy(name2:match("^test_[a-f0-9]+%.pdf$"))
+                assert.are_not.equal(name1, name2)
+            end)
+
+            it("should preserve extension", function()
+                local name = files.generate_filename("document.pdf")
+                assert.is_truthy(name:match("%.pdf$"))
+
+                local name2 = files.generate_filename("image.PNG")
+                assert.is_truthy(name2:match("%.PNG$"))
+            end)
+
+            it("should handle files without extension", function()
+                local name = files.generate_filename("README")
+                assert.is_truthy(name:match("^README_[a-f0-9]+$"))
+            end)
+        end)
+
+        describe("file operations", function()
+            it("should save and read file", function()
+                local file_info, err = files.save("posts", 1, "test.txt", "Hello World", "text/plain")
+                assert.is_nil(err)
+                assert.is_truthy(file_info)
+                assert.are.equal("test.txt", file_info.filename)
+                assert.are.equal(11, file_info.size)
+                assert.are.equal("text/plain", file_info.mime_type)
+
+                local data = files.read("posts", 1, "test.txt")
+                assert.are.equal("Hello World", data)
+            end)
+
+            it("should delete file", function()
+                files.save("posts", 1, "test.txt", "content", "text/plain")
+                local ok = files.delete("posts", 1, "test.txt")
+                assert.is_true(ok)
+
+                local data = files.read("posts", 1, "test.txt")
+                assert.is_nil(data)
+            end)
+
+            it("should delete all record files", function()
+                files.save("posts", 1, "file1.txt", "content1", "text/plain")
+                files.save("posts", 1, "file2.txt", "content2", "text/plain")
+
+                local ok = files.delete_record_files("posts", 1)
+                assert.is_true(ok)
+
+                assert.is_nil(files.read("posts", 1, "file1.txt"))
+                assert.is_nil(files.read("posts", 1, "file2.txt"))
+            end)
+
+            it("should reject files exceeding max size", function()
+                files.configure({
+                    storage_path = "/tmp/motebase_test_storage",
+                    max_file_size = 10,
+                })
+
+                local file_info, err = files.save("posts", 1, "big.txt", "this is way too long", "text/plain")
+                assert.is_nil(file_info)
+                assert.is_truthy(err:match("^file too large"))
+            end)
+        end)
+
+        describe("serialization", function()
+            it("should serialize and deserialize file info", function()
+                local info = {
+                    filename = "doc.pdf",
+                    size = 1024,
+                    mime_type = "application/pdf",
+                }
+
+                local serialized = files.serialize(info)
+                assert.is_string(serialized)
+
+                local deserialized = files.deserialize(serialized)
+                assert.are.equal("doc.pdf", deserialized.filename)
+                assert.are.equal(1024, deserialized.size)
+                assert.are.equal("application/pdf", deserialized.mime_type)
+            end)
+
+            it("should handle nil or empty input", function()
+                assert.is_nil(files.deserialize(nil))
+                assert.are.equal("", files.deserialize(""))
+            end)
+        end)
+
+        describe("file tokens", function()
+            before_each(function()
+                files.configure({
+                    storage_path = "/tmp/motebase_test_storage",
+                    secret = "test-secret-key",
+                    file_token_duration = 120,
+                })
+            end)
+
+            it("should create and verify token", function()
+                local token, expires = files.create_token()
+                assert.is_truthy(token)
+                assert.are.equal(120, expires)
+
+                local payload = files.verify_token(token)
+                assert.is_truthy(payload)
+                assert.are.equal("file", payload.purpose)
+                assert.is_truthy(payload.exp)
+                assert.is_truthy(payload.jti)
+            end)
+
+            it("should reject invalid token", function()
+                local payload, err = files.verify_token("invalid.token")
+                assert.is_nil(payload)
+                assert.are.equal("invalid signature", err)
+            end)
+
+            it("should reject tampered token", function()
+                local token = files.create_token()
+                local tampered = token:gsub(".$", "X")
+
+                local payload, err = files.verify_token(tampered)
+                assert.is_nil(payload)
+                assert.are.equal("invalid signature", err)
+            end)
+
+            it("should reject expired token", function()
+                files.configure({
+                    storage_path = "/tmp/motebase_test_storage",
+                    secret = "test-secret-key",
+                    file_token_duration = -1,
+                })
+
+                local token = files.create_token()
+                local payload, err = files.verify_token(token)
+                assert.is_nil(payload)
+                assert.are.equal("token expired", err)
+            end)
+
+            it("should require secret to create token", function()
+                files.configure({
+                    storage_path = "/tmp/motebase_test_storage",
+                    secret = false,
+                })
+
+                local token, err = files.create_token()
+                assert.is_nil(token)
+                assert.are.equal("secret not configured", err)
+            end)
+        end)
+    end)
+
+    describe("storage", function()
+        local test_path = "/tmp/motebase_storage_test"
+
+        before_each(function()
+            storage.init({ storage_path = test_path })
+        end)
+
+        after_each(function()
+            rmdir_recursive(test_path)
+        end)
+
+        it("should write and read files", function()
+            local ok = storage.write("test/file.txt", "hello storage")
+            assert.is_true(ok)
+
+            local data = storage.read("test/file.txt")
+            assert.are.equal("hello storage", data)
+        end)
+
+        it("should check file existence", function()
+            storage.write("exists.txt", "content")
+
+            assert.is_true(storage.exists("exists.txt"))
+            assert.is_false(storage.exists("missing.txt"))
+        end)
+
+        it("should delete files", function()
+            storage.write("todelete.txt", "content")
+            assert.is_true(storage.exists("todelete.txt"))
+
+            local ok = storage.delete("todelete.txt")
+            assert.is_true(ok)
+            assert.is_false(storage.exists("todelete.txt"))
+        end)
+
+        it("should create directories", function()
+            local ok = storage.mkdir("nested/deep/path")
+            assert.is_true(ok)
+
+            storage.write("nested/deep/path/file.txt", "deep content")
+            local data = storage.read("nested/deep/path/file.txt")
+            assert.are.equal("deep content", data)
+        end)
+
+        it("should delete directories", function()
+            storage.mkdir("toremove/subdir")
+            storage.write("toremove/subdir/file.txt", "content")
+
+            local ok = storage.delete_dir("toremove")
+            assert.is_true(ok)
+            assert.is_false(storage.exists("toremove/subdir/file.txt"))
+        end)
+
+        it("should prevent path traversal", function()
+            local data = storage.read("../../../etc/passwd")
+            assert.is_nil(data)
+        end)
+
+        it("should strip double dots from paths", function()
+            storage.write("safe.txt", "safe content")
+
+            local data = storage.read("....safe.txt")
+            assert.are.equal("safe content", data)
+
+            local data2 = storage.read("..safe.txt")
+            assert.are.equal("safe content", data2)
         end)
     end)
 end)

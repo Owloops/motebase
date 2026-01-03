@@ -34,16 +34,32 @@ Register, login, and protect routes. HMAC-SHA256 signing with `jti` for revocati
 <tr>
 <td width="50%">
 
-**SQLite Storage**
+**File Storage**
 
-Self-contained database with WAL mode. No external dependencies.
+Upload files via multipart forms. Protected files with short-lived tokens.
 
 </td>
+<td width="50%">
+
+**SQLite + Filesystem**
+
+Self-contained database with WAL mode. Files on disk with metadata in SQLite.
+
+</td>
+</tr>
+<tr>
 <td width="50%">
 
 **Tiny Footprint**
 
 Small codebase, tiny binary, minimal Docker image.
+
+</td>
+<td width="50%">
+
+**Pure Lua**
+
+No external binaries. Cross-platform via LuaFileSystem.
 
 </td>
 </tr>
@@ -112,6 +128,7 @@ eval "$(luarocks path --bin)"
 | `-h, --host` | Host to bind to | `0.0.0.0` |
 | `-d, --db` | Database file path | `motebase.db` |
 | `-s, --secret` | JWT secret key | `change-me-in-production` |
+| `--storage` | File storage directory | `./storage` |
 | `--help` | Show help message | |
 
 ### Environment Variables
@@ -120,6 +137,7 @@ eval "$(luarocks path --bin)"
 |----------|-------------|
 | `MOTEBASE_SECRET` | JWT secret key |
 | `MOTEBASE_DB` | Database file path |
+| `MOTEBASE_STORAGE` | File storage directory |
 | `MOTEBASE_LOG` | Enable logging (`0` to disable) |
 
 ## API
@@ -190,6 +208,43 @@ curl http://localhost:8080/api/auth/me \
 | `number` | Numeric value |
 | `boolean` | True/false |
 | `json` | JSON object |
+| `file` | File upload (see File Storage) |
+
+### File Storage
+
+```bash
+# Create collection with file field
+curl -X POST http://localhost:8080/api/collections \
+  -H "Content-Type: application/json" \
+  -d '{"name":"docs","schema":{"title":{"type":"string"},"attachment":{"type":"file"}}}'
+
+# Upload file with record
+curl -X POST http://localhost:8080/api/collections/docs/records \
+  -F "title=My Document" \
+  -F "attachment=@document.pdf"
+
+# Download file
+curl http://localhost:8080/api/files/docs/1/document_abc123.pdf -o file.pdf
+```
+
+#### Protected Files
+
+Mark file fields as protected to require token-based access:
+
+```bash
+# Create collection with protected file
+curl -X POST http://localhost:8080/api/collections \
+  -H "Content-Type: application/json" \
+  -d '{"name":"private","schema":{"doc":{"type":"file","protected":true}}}'
+
+# Get file token (requires auth)
+curl -X POST http://localhost:8080/api/files/token \
+  -H "Authorization: Bearer <token>"
+# Returns: {"token":"...","expires":120}
+
+# Access protected file with token
+curl "http://localhost:8080/api/files/private/1/doc_abc123.pdf?token=<file_token>"
+```
 
 ## Deployment
 

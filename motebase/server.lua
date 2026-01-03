@@ -180,7 +180,7 @@ local function handle_client(wrapper, config)
         return true
     end
 
-    local body, parse_err = middleware.parse_body(body_raw)
+    local body, parse_err, is_multipart = middleware.parse_body(body_raw, headers)
     if parse_err then
         local cors = middleware.cors_headers()
         cors["Content-Type"] = "application/json"
@@ -188,7 +188,13 @@ local function handle_client(wrapper, config)
         return true
     end
 
-    local ctx = create_context(method, path, headers, body, config)
+    local path_only = path:match("^([^?]+)") or path
+    local query_string = path:match("%?(.+)$")
+
+    local ctx = create_context(method, path_only, headers, body, config)
+    ctx.query_string = query_string
+    ctx.full_path = path
+    ctx.is_multipart = is_multipart
 
     local auth_payload, auth_err = middleware.extract_auth(headers, config.secret)
     if auth_payload then
@@ -197,7 +203,7 @@ local function handle_client(wrapper, config)
         ctx.auth_error = auth_err
     end
 
-    local handler, params = router.match(method, path)
+    local handler, params = router.match(method, path_only)
     if not handler then
         local cors = middleware.cors_headers()
         cors["Content-Type"] = "application/json"
@@ -371,6 +377,20 @@ end
 
 function server.error(ctx, status, message)
     server.json(ctx, status, { error = message })
+end
+
+function server.file(ctx, status, data, filename, mime_type)
+    ctx._status = status
+    ctx._response_headers["Content-Type"] = mime_type or "application/octet-stream"
+    ctx._response_headers["Content-Disposition"] = 'inline; filename="' .. (filename or "download") .. '"'
+    ctx._response_body = data
+end
+
+function server.download(ctx, status, data, filename, mime_type)
+    ctx._status = status
+    ctx._response_headers["Content-Type"] = mime_type or "application/octet-stream"
+    ctx._response_headers["Content-Disposition"] = 'attachment; filename="' .. (filename or "download") .. '"'
+    ctx._response_body = data
 end
 
 return server
