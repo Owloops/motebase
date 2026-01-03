@@ -19,12 +19,14 @@ local header_grammar = Cf(Ct("") * (header * abnf.CRLF) ^ 0, rawset)
 
 function multipart.get_boundary(content_type)
     if not content_type then return nil end
+    if type(content_type) == "table" then return content_type.parameters and content_type.parameters.boundary end
     local parsed = mime.parse(content_type)
     return parsed and parsed.parameters and parsed.parameters.boundary
 end
 
 function multipart.is_multipart(content_type)
     if not content_type then return false end
+    if type(content_type) == "table" then return content_type.type == "multipart/form-data" end
     local parsed = mime.parse(content_type)
     return parsed and parsed.type == "multipart/form-data"
 end
