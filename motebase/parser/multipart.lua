@@ -1,62 +1,34 @@
+-- RFC-2046 multipart/form-data parser
+
 local lpeg = require("lpeg")
 local abnf = require("motebase.parser.abnf")
+local mime = require("motebase.parser.mime")
 
 local multipart = {}
 
--- patterns --
-
+local C, Cf, Cg, Ct = lpeg.C, lpeg.Cf, lpeg.Cg, lpeg.Ct
 local P = lpeg.P
 
--- captures --
+local param = Cg(C(mime.token) * P("=") * mime.param_value)
+local params = Cf(Ct("") * (P(";") * abnf.WSP ^ 0 * param) ^ 0, rawset)
+local disposition_grammar = P("form-data") * params
 
-local C, Cf, Cg, Ct = lpeg.C, lpeg.Cf, lpeg.Cg, lpeg.Ct
-
--- disposition grammar --
-
-local function build_disposition_grammar()
-    local param = Cg(C(abnf.token) * P("=") * abnf.param_value)
-    local params = Cf(Ct("") * (P(";") * abnf.WSP ^ 0 * param) ^ 0, rawset)
-
-    return P("form-data") * params
-end
-
-local disposition_grammar = build_disposition_grammar()
-
--- header grammar --
-
-local function build_header_grammar()
-    local line_end = abnf.CRLF
-
-    local header_name = C(abnf.token)
-    local header_value = C((P(1) - line_end) ^ 0)
-    local header = Cg(header_name * P(":") * abnf.WSP ^ 0 * header_value)
-    local headers = Cf(Ct("") * (header * line_end) ^ 0, rawset)
-
-    return headers
-end
-
-local header_grammar = build_header_grammar()
-
--- boundary extraction --
+local header_name = C(mime.token)
+local header_value = C((P(1) - abnf.CRLF) ^ 0)
+local header = Cg(header_name * P(":") * abnf.WSP ^ 0 * header_value)
+local header_grammar = Cf(Ct("") * (header * abnf.CRLF) ^ 0, rawset)
 
 function multipart.get_boundary(content_type)
     if not content_type then return nil end
-
-    local boundary_pattern = P("boundary=") * abnf.param_value
-    local skip = (P(1) - P("boundary=")) ^ 0
-    local grammar = skip * boundary_pattern
-
-    return lpeg.match(grammar, content_type)
+    local parsed = mime.parse(content_type)
+    return parsed and parsed.parameters and parsed.parameters.boundary
 end
-
--- multipart check --
 
 function multipart.is_multipart(content_type)
     if not content_type then return false end
-    return content_type:sub(1, 19) == "multipart/form-data"
+    local parsed = mime.parse(content_type)
+    return parsed and parsed.type == "multipart/form-data"
 end
-
--- part parsing --
 
 local function parse_part(part_content)
     local sep = "\r\n\r\n"
@@ -87,8 +59,8 @@ local function parse_part(part_content)
 
     if not disposition_header then return nil, "missing Content-Disposition header" end
 
-    local params = lpeg.match(disposition_grammar, disposition_header)
-    if not params then return nil, "failed to parse Content-Disposition" end
+    local disposition = lpeg.match(disposition_grammar, disposition_header)
+    if not disposition then return nil, "failed to parse Content-Disposition" end
 
     local content_type = nil
     for k, v in pairs(headers) do
@@ -99,14 +71,12 @@ local function parse_part(part_content)
     end
 
     return {
-        name = params.name,
-        filename = params.filename,
+        name = disposition.name,
+        filename = disposition.filename,
         content_type = content_type or "text/plain",
         data = body,
     }
 end
-
--- main parse function --
 
 function multipart.parse(body, boundary)
     if not body or not boundary then return nil, "missing body or boundary" end
@@ -136,7 +106,16 @@ function multipart.parse(body, boundary)
         part_content = part_content:gsub("\r?\n$", "")
 
         local part = parse_part(part_content)
-        if part and part.name then parts[part.name] = part end
+        if part and part.name then
+            local name = part.name
+            if not parts[name] then
+                parts[name] = part
+            elseif parts[name].data then
+                parts[name] = { parts[name], part }
+            else
+                parts[name][#parts[name] + 1] = part
+            end
+        end
 
         local after_delim = body:sub(next_delim + #delimiter, next_delim + #delimiter + 1)
         if after_delim == "--" then break end
@@ -146,8 +125,6 @@ function multipart.parse(body, boundary)
 
     return parts
 end
-
--- file detection --
 
 function multipart.is_file(part)
     return part and part.filename and part.filename ~= ""

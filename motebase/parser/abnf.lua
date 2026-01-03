@@ -1,9 +1,7 @@
--- RFC-5234 ABNF / RFC-2045 MIME primitives
+-- RFC-5234 ABNF core rules
 -- Patterns from Sean Conner's LPeg-Parsers (LGPL-3.0)
 
 local lpeg = require("lpeg")
-
--- rfc 5234 abnf --
 
 local abnf = {
     ALPHA = lpeg.R("AZ", "az"),
@@ -24,16 +22,5 @@ local abnf = {
 
 abnf.WSP = abnf.SP + abnf.HTAB
 abnf.LWSP = (abnf.WSP + abnf.CRLF * abnf.WSP) ^ 0
-
--- rfc 2045 mime --
-
-local tspecials = lpeg.S([[()<>@,;:\"/[]?=]])
-abnf.token = (lpeg.P(1) - tspecials - abnf.CTL - abnf.WSP) ^ 1
-
-local qtext = lpeg.P(1) - lpeg.S('"\\') - abnf.CRLF
-local quoted_pair = lpeg.P("\\") * lpeg.C(lpeg.P(1))
-abnf.quoted_string = abnf.DQUOTE * lpeg.Cs((qtext + quoted_pair) ^ 0) * abnf.DQUOTE
-
-abnf.param_value = abnf.quoted_string + lpeg.C(abnf.token)
 
 return abnf

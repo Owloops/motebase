@@ -39,6 +39,7 @@ build = {
         ["motebase.parser"] = "motebase/parser/init.lua",
         ["motebase.parser.email"] = "motebase/parser/email.lua",
         ["motebase.parser.http"] = "motebase/parser/http.lua",
+        ["motebase.parser.mime"] = "motebase/parser/mime.lua",
         ["motebase.parser.multipart"] = "motebase/parser/multipart.lua",
         ["motebase.parser.abnf"] = "motebase/parser/abnf.lua",
         ["motebase.router"] = "motebase/router.lua",

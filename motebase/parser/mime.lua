@@ -1,0 +1,36 @@
+-- RFC-2045 MIME primitives
+-- Patterns from Sean Conner's LPeg-Parsers (LGPL-3.0)
+
+local lpeg = require("lpeg")
+local abnf = require("motebase.parser.abnf")
+
+local C, Cf, Cg, Cs, Ct = lpeg.C, lpeg.Cf, lpeg.Cg, lpeg.Cs, lpeg.Ct
+local P, R, S = lpeg.P, lpeg.R, lpeg.S
+
+local tspecials = S([=["(),/:;<=>?@[\]]=])
+local qtext = P(1) - S('"\\') - abnf.CRLF
+local quoted_pair = P("\\") * C(P(1))
+
+local mime = {
+    token = (P(1) - tspecials - abnf.CTL - abnf.WSP) ^ 1,
+    quoted_string = abnf.DQUOTE * Cs((qtext + quoted_pair) ^ 0) * abnf.DQUOTE,
+}
+
+mime.param_value = mime.quoted_string + C(mime.token)
+
+local ichar = R("AZ") / string.lower + (R("!~") - tspecials)
+local itoken = Cs(ichar ^ 1)
+local value = P('"') * C(R(" !", "#~") ^ 0) * P('"') + C((R(" ~") - tspecials) ^ 1)
+local parameters = Cf(Ct("") * (P(";") * abnf.WSP ^ 0 * Cg(itoken * P("=") * value)) ^ 0, function(acc, name, val)
+    acc[name] = val
+    return acc
+end)
+local type_subtype = Cs(ichar ^ 1 * P("/") * ichar ^ 1)
+local grammar = Ct(Cg(type_subtype, "type") * Cg(parameters, "parameters"))
+
+function mime.parse(content_type)
+    if not content_type then return nil end
+    return lpeg.match(grammar, content_type)
+end
+
+return mime
