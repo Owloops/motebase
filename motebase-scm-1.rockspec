@@ -56,6 +56,9 @@ build = {
         ["motebase.crypto.sha256"] = "motebase/crypto/sha256.lua",
         ["motebase.utils.log"] = "motebase/utils/log.lua",
         ["motebase.utils.output"] = "motebase/utils/output.lua",
+        ["motebase.query"] = "motebase/query/init.lua",
+        ["motebase.query.filter"] = "motebase/query/filter.lua",
+        ["motebase.query.sort"] = "motebase/query/sort.lua",
     },
     install = {
         bin = {
