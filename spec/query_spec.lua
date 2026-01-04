@@ -97,7 +97,7 @@ describe("query", function()
             assert.are.equal("%hello%", params[1])
 
             ast = filter.parse("title~'hello%'")
-            sql, params = filter.to_sql(ast)
+            params = select(2, filter.to_sql(ast))
             assert.are.equal("hello%", params[1])
 
             ast = filter.parse("status='active' && views>100")
@@ -106,7 +106,7 @@ describe("query", function()
             assert.are.equal(2, #params)
 
             ast = filter.parse("(status='active' || status='pending') && views>100")
-            sql, params = filter.to_sql(ast)
+            sql = filter.to_sql(ast)
             assert.are.equal("((status = ? OR status = ?) AND views > ?)", sql)
         end)
     end)

@@ -37,9 +37,7 @@ local function validate_fields(fields, schema)
     local valid = {}
     for i = 1, #fields do
         local field = fields[i]
-        if SYSTEM_FIELDS[field] or (schema and schema[field]) then
-            valid[#valid + 1] = field
-        end
+        if SYSTEM_FIELDS[field] or (schema and schema[field]) then valid[#valid + 1] = field end
     end
     return #valid > 0 and valid or nil
 end

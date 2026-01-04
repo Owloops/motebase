@@ -84,19 +84,13 @@ function collections.list_records(name, query_string)
 
     local opts = query.parse(query_string, collection.schema)
 
-    if opts.filter_error then
-        return nil, opts.filter_error
-    end
-    if opts.sort_error then
-        return nil, opts.sort_error
-    end
+    if opts.filter_error then return nil, opts.filter_error end
+    if opts.sort_error then return nil, opts.sort_error end
 
     local built = query.build_sql(name, opts)
 
     local records = db.query(built.sql, built.params)
-    if not records then
-        return nil, "query failed"
-    end
+    if not records then return nil, "query failed" end
 
     local result = {
         page = opts.page,

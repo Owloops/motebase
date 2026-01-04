@@ -32,8 +32,12 @@ describe("router", function()
     end)
 
     it("matches different methods", function()
-        router.get("/resource", function() return "get" end)
-        router.post("/resource", function() return "post" end)
+        router.get("/resource", function()
+            return "get"
+        end)
+        router.post("/resource", function()
+            return "post"
+        end)
 
         assert.is_truthy(router.match("GET", "/resource"))
         assert.is_truthy(router.match("POST", "/resource"))
