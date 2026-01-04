@@ -25,13 +25,20 @@ Create collections with typed schemas at runtime. Auto-generated CRUD endpoints.
 </td>
 <td width="50%">
 
+**Query & Filter**
+
+PocketBase-compatible filter syntax. Sort, paginate, and select fields.
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
 **JWT Authentication**
 
 Register, login, and protect routes. HMAC-SHA256 signing with `jti` for revocation.
 
 </td>
-</tr>
-<tr>
 <td width="50%">
 
 **File Storage**
@@ -39,6 +46,8 @@ Register, login, and protect routes. HMAC-SHA256 signing with `jti` for revocati
 Upload files via multipart forms. Protected files with short-lived tokens.
 
 </td>
+</tr>
+<tr>
 <td width="50%">
 
 **SQLite + Filesystem**
@@ -46,20 +55,11 @@ Upload files via multipart forms. Protected files with short-lived tokens.
 Self-contained database with WAL mode. Files on disk with metadata in SQLite.
 
 </td>
-</tr>
-<tr>
 <td width="50%">
 
 **Tiny Footprint**
 
-Small codebase, tiny binary, minimal Docker image.
-
-</td>
-<td width="50%">
-
-**Pure Lua**
-
-No external binaries. Cross-platform via LuaFileSystem.
+~2MB binary. ~2MB Docker image. Pure Lua, cross-platform.
 
 </td>
 </tr>
@@ -72,6 +72,7 @@ No external binaries. Cross-platform via LuaFileSystem.
 | Size | ~2GB+ | ~50MB | ~2MB |
 | Boot time | >1s | ~1s | <100ms |
 | Self-contained | No | Yes | Yes |
+| Filter syntax | PostgREST | Custom | PocketBase-compatible |
 
 ## Installation
 
@@ -178,6 +179,61 @@ curl -X PATCH http://localhost:8080/api/collections/posts/records/1 \
 
 # Delete record
 curl -X DELETE http://localhost:8080/api/collections/posts/records/1
+```
+
+### Query & Filter
+
+List records with filtering, sorting, pagination, and field selection:
+
+```bash
+# Filter records (PocketBase-compatible syntax)
+curl "http://localhost:8080/api/collections/posts/records?filter=status='published'"
+
+# Multiple conditions
+curl "http://localhost:8080/api/collections/posts/records?filter=status='published'%20%26%26%20views>100"
+
+# Sort (- for descending)
+curl "http://localhost:8080/api/collections/posts/records?sort=-created_at,title"
+
+# Pagination
+curl "http://localhost:8080/api/collections/posts/records?page=2&perPage=10"
+
+# Select fields
+curl "http://localhost:8080/api/collections/posts/records?fields=id,title,status"
+
+# Combined
+curl "http://localhost:8080/api/collections/posts/records?filter=status='published'&sort=-views&page=1&perPage=10&fields=id,title"
+
+# Skip total count (faster for large datasets)
+curl "http://localhost:8080/api/collections/posts/records?skipTotal=true"
+```
+
+#### Filter Operators
+
+| Operator | Description | Example |
+|----------|-------------|---------|
+| `=` | Equal | `status='active'` |
+| `!=` | Not equal | `status!='deleted'` |
+| `>` | Greater than | `views>100` |
+| `>=` | Greater or equal | `views>=100` |
+| `<` | Less than | `views<100` |
+| `<=` | Less or equal | `views<=100` |
+| `~` | Like/Contains | `title~'hello'` |
+| `!~` | Not like | `title!~'spam'` |
+| `&&` | AND | `a='x' && b='y'` |
+| `\|\|` | OR | `a='x' \|\| a='y'` |
+| `()` | Grouping | `(a='x' \|\| a='y') && b='z'` |
+
+#### Response Format
+
+```json
+{
+  "page": 1,
+  "perPage": 20,
+  "totalItems": 100,
+  "totalPages": 5,
+  "items": [...]
+}
 ```
 
 ### Authentication

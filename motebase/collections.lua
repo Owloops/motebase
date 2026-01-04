@@ -3,6 +3,7 @@ local schema = require("motebase.schema")
 local cjson = require("cjson")
 local files = require("motebase.files")
 local multipart = require("motebase.parser.multipart")
+local query = require("motebase.query")
 
 local collections = {}
 
@@ -77,7 +78,45 @@ end
 
 -- records --
 
-function collections.list_records(name, limit, offset)
+function collections.list_records(name, query_string)
+    local collection = collections.get(name)
+    if not collection then return nil, "collection not found" end
+
+    local opts = query.parse(query_string, collection.schema)
+
+    if opts.filter_error then
+        return nil, opts.filter_error
+    end
+    if opts.sort_error then
+        return nil, opts.sort_error
+    end
+
+    local built = query.build_sql(name, opts)
+
+    local records = db.query(built.sql, built.params)
+    if not records then
+        return nil, "query failed"
+    end
+
+    local result = {
+        page = opts.page,
+        perPage = opts.per_page,
+        items = records,
+    }
+
+    if not opts.skip_total and built.count_sql then
+        local count_result = db.query(built.count_sql, built.count_params)
+        if count_result and count_result[1] then
+            local total = count_result[1].count or 0
+            result.totalItems = total
+            result.totalPages = math.ceil(total / opts.per_page)
+        end
+    end
+
+    return result
+end
+
+function collections.list_records_simple(name, limit, offset)
     limit = limit or 100
     offset = offset or 0
     local sql = "SELECT * FROM " .. name .. " ORDER BY id DESC LIMIT ? OFFSET ?"

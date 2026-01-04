@@ -413,8 +413,10 @@ describe("motebase", function()
                 collections.create_record("posts", { title = "Post 1" })
                 collections.create_record("posts", { title = "Post 2" })
 
-                local records = collections.list_records("posts")
-                assert.are.equal(2, #records)
+                local result = collections.list_records("posts")
+                assert.are.equal(2, #result.items)
+                assert.are.equal(2, result.totalItems)
+                assert.are.equal(1, result.page)
             end)
 
             it("should get record by id", function()

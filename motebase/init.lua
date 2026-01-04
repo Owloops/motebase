@@ -54,14 +54,18 @@ end
 
 local function handle_list_records(ctx)
     local name = ctx.params.name
-    local collection = collections.get(name)
-    if not collection then
-        server.error(ctx, 404, "collection not found")
+
+    local result, err = collections.list_records(name, ctx.query_string)
+    if not result then
+        if err == "collection not found" then
+            server.error(ctx, 404, err)
+        else
+            server.error(ctx, 400, err)
+        end
         return
     end
 
-    local records = collections.list_records(name)
-    server.json(ctx, 200, { items = records or {} })
+    server.json(ctx, 200, result)
 end
 
 local function handle_get_record(ctx)
