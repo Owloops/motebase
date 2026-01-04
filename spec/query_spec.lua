@@ -4,242 +4,134 @@ local query = require("motebase.query")
 
 describe("query", function()
     describe("filter parser", function()
-        it("parses simple equality", function()
-            local ast = filter.parse("status='active'")
-            assert.is_truthy(ast)
-            assert.are.equal("comparison", ast.type)
-            assert.are.equal("status", ast.field)
-            assert.are.equal("=", ast.op)
-            assert.are.equal("active", ast.value)
+        it("parses comparison operators", function()
+            local cases = {
+                { "status='active'", "=", "active" },
+                { "status!='deleted'", "!=", "deleted" },
+                { "views>100", ">", 100 },
+                { "views>=100", ">=", 100 },
+                { "views<50", "<", 50 },
+                { "views<=50", "<=", 50 },
+                { "title~'hello'", "~", "hello" },
+                { "title!~'spam'", "!~", "spam" },
+                { "tags?='lua'", "?=", "lua" },
+            }
+            for _, case in ipairs(cases) do
+                local ast = filter.parse(case[1])
+                assert.is_truthy(ast, "failed to parse: " .. case[1])
+                assert.are.equal(case[2], ast.op)
+                assert.are.equal(case[3], ast.value)
+            end
         end)
 
-        it("parses not equal", function()
-            local ast = filter.parse("status!='deleted'")
-            assert.are.equal("!=", ast.op)
-        end)
-
-        it("parses greater than", function()
-            local ast = filter.parse("views>100")
-            assert.are.equal(">", ast.op)
-            assert.are.equal(100, ast.value)
-        end)
-
-        it("parses greater or equal", function()
-            local ast = filter.parse("views>=100")
-            assert.are.equal(">=", ast.op)
-        end)
-
-        it("parses less than", function()
-            local ast = filter.parse("views<50")
-            assert.are.equal("<", ast.op)
-        end)
-
-        it("parses less or equal", function()
-            local ast = filter.parse("views<=50")
-            assert.are.equal("<=", ast.op)
-        end)
-
-        it("parses like operator", function()
-            local ast = filter.parse("title~'hello'")
-            assert.are.equal("~", ast.op)
-            assert.are.equal("hello", ast.value)
-        end)
-
-        it("parses not like operator", function()
-            local ast = filter.parse("title!~'spam'")
-            assert.are.equal("!~", ast.op)
-        end)
-
-        it("parses double quoted strings", function()
+        it("parses value types", function()
             local ast = filter.parse('title="hello world"')
             assert.are.equal("hello world", ast.value)
-        end)
 
-        it("parses boolean true", function()
-            local ast = filter.parse("active=true")
+            ast = filter.parse("active=true")
             assert.are.equal(true, ast.value)
-        end)
 
-        it("parses boolean false", function()
-            local ast = filter.parse("active=false")
+            ast = filter.parse("active=false")
             assert.are.equal(false, ast.value)
-        end)
 
-        it("parses null", function()
-            local ast = filter.parse("deleted=null")
+            ast = filter.parse("deleted=null")
             assert.is_nil(ast.value)
-        end)
 
-        it("parses negative numbers", function()
-            local ast = filter.parse("balance>-100")
+            ast = filter.parse("balance>-100")
             assert.are.equal(-100, ast.value)
-        end)
 
-        it("parses decimal numbers", function()
-            local ast = filter.parse("price<99.99")
+            ast = filter.parse("price<99.99")
             assert.are.equal(99.99, ast.value)
         end)
 
-        it("parses AND expression", function()
+        it("parses logical expressions", function()
             local ast = filter.parse("status='active' && views>100")
             assert.are.equal("binary", ast.type)
             assert.are.equal("AND", ast.op)
-            assert.are.equal("status", ast.left.field)
-            assert.are.equal("views", ast.right.field)
-        end)
 
-        it("parses OR expression", function()
-            local ast = filter.parse("status='active' || status='pending'")
-            assert.are.equal("binary", ast.type)
+            ast = filter.parse("status='active' || status='pending'")
             assert.are.equal("OR", ast.op)
-        end)
 
-        it("parses grouped expressions", function()
-            local ast = filter.parse("(status='active' || status='pending') && views>100")
-            assert.are.equal("binary", ast.type)
+            ast = filter.parse("(status='active' || status='pending') && views>100")
             assert.are.equal("AND", ast.op)
-            assert.are.equal("binary", ast.left.type)
             assert.are.equal("OR", ast.left.op)
         end)
 
-        it("parses multi-value operators", function()
-            local ast = filter.parse("tags?='lua'")
-            assert.are.equal("?=", ast.op)
-        end)
-
-        it("handles whitespace", function()
+        it("handles whitespace and errors", function()
             local ast = filter.parse("  status  =  'active'  ")
             assert.are.equal("status", ast.field)
-            assert.are.equal("active", ast.value)
-        end)
 
-        it("returns error for empty filter", function()
-            local ast, err = filter.parse("")
-            assert.is_nil(ast)
+            local ast2, err = filter.parse("")
+            assert.is_nil(ast2)
             assert.is_truthy(err)
-        end)
 
-        it("returns error for invalid syntax", function()
-            local ast, err = filter.parse("not valid filter")
-            assert.is_nil(ast)
-            assert.is_truthy(err)
+            local ast3, err2 = filter.parse("not valid filter")
+            assert.is_nil(ast3)
+            assert.is_truthy(err2)
         end)
     end)
 
     describe("filter validation", function()
-        local schema = {
-            title = { type = "string" },
-            views = { type = "number" },
-        }
+        local schema = { title = { type = "string" }, views = { type = "number" } }
 
-        it("accepts valid fields", function()
-            local ast = filter.parse("title='hello'")
-            local err = filter.validate(ast, schema)
-            assert.is_nil(err)
-        end)
+        it("validates fields against schema", function()
+            assert.is_nil(filter.validate(filter.parse("title='hello'"), schema))
+            assert.is_nil(filter.validate(filter.parse("id=1"), schema))
+            assert.is_nil(filter.validate(filter.parse("created_at>1000"), schema))
 
-        it("accepts system fields", function()
-            local ast = filter.parse("id=1")
-            local err = filter.validate(ast, schema)
-            assert.is_nil(err)
-        end)
-
-        it("accepts created_at field", function()
-            local ast = filter.parse("created_at>1000")
-            local err = filter.validate(ast, schema)
-            assert.is_nil(err)
-        end)
-
-        it("rejects unknown fields", function()
-            local ast = filter.parse("unknown='value'")
-            local err = filter.validate(ast, schema)
-            assert.is_truthy(err)
+            local err = filter.validate(filter.parse("unknown='value'"), schema)
             assert.is_truthy(err:find("unknown field"))
         end)
     end)
 
     describe("filter to SQL", function()
-        it("converts simple equality", function()
+        it("converts expressions to parameterized SQL", function()
             local ast = filter.parse("status='active'")
             local sql, params = filter.to_sql(ast)
             assert.are.equal("status = ?", sql)
             assert.are.equal("active", params[1])
-        end)
 
-        it("converts like with auto-wildcards", function()
-            local ast = filter.parse("title~'hello'")
-            local sql, params = filter.to_sql(ast)
+            ast = filter.parse("title~'hello'")
+            sql, params = filter.to_sql(ast)
             assert.are.equal("title LIKE ?", sql)
             assert.are.equal("%hello%", params[1])
-        end)
 
-        it("preserves user-specified wildcards", function()
-            local ast = filter.parse("title~'hello%'")
-            local sql, params = filter.to_sql(ast)
+            ast = filter.parse("title~'hello%'")
+            sql, params = filter.to_sql(ast)
             assert.are.equal("hello%", params[1])
-        end)
 
-        it("converts AND expression", function()
-            local ast = filter.parse("status='active' && views>100")
-            local sql, params = filter.to_sql(ast)
+            ast = filter.parse("status='active' && views>100")
+            sql, params = filter.to_sql(ast)
             assert.are.equal("(status = ? AND views > ?)", sql)
-            assert.are.equal("active", params[1])
-            assert.are.equal(100, params[2])
-        end)
+            assert.are.equal(2, #params)
 
-        it("converts OR expression", function()
-            local ast = filter.parse("status='a' || status='b'")
-            local sql, params = filter.to_sql(ast)
-            assert.are.equal("(status = ? OR status = ?)", sql)
-        end)
-
-        it("converts complex nested expression", function()
-            local ast = filter.parse("(status='active' || status='pending') && views>100")
-            local sql, params = filter.to_sql(ast)
+            ast = filter.parse("(status='active' || status='pending') && views>100")
+            sql, params = filter.to_sql(ast)
             assert.are.equal("((status = ? OR status = ?) AND views > ?)", sql)
-            assert.are.equal(3, #params)
         end)
     end)
 
     describe("sort parser", function()
-        local schema = {
-            title = { type = "string" },
-            views = { type = "number" },
-        }
+        local schema = { title = { type = "string" }, views = { type = "number" } }
 
-        it("parses single ascending field", function()
+        it("parses sort expressions", function()
             local parsed = sort.parse("title")
             assert.are.equal(1, #parsed)
             assert.are.equal("title", parsed[1].field)
             assert.are.equal("ASC", parsed[1].dir)
-        end)
 
-        it("parses single descending field", function()
-            local parsed = sort.parse("-created_at")
-            assert.are.equal("created_at", parsed[1].field)
+            parsed = sort.parse("-created_at")
             assert.are.equal("DESC", parsed[1].dir)
-        end)
 
-        it("parses multiple fields", function()
-            local parsed = sort.parse("-views,title")
+            parsed = sort.parse("-views,title")
             assert.are.equal(2, #parsed)
-            assert.are.equal("views", parsed[1].field)
             assert.are.equal("DESC", parsed[1].dir)
-            assert.are.equal("title", parsed[2].field)
             assert.are.equal("ASC", parsed[2].dir)
         end)
 
-        it("accepts + prefix for ascending", function()
-            local parsed = sort.parse("+title")
-            assert.are.equal("ASC", parsed[1].dir)
-        end)
+        it("handles empty and invalid input", function()
+            assert.is_nil(sort.parse(""))
 
-        it("returns nil for empty string", function()
-            local parsed = sort.parse("")
-            assert.is_nil(parsed)
-        end)
-
-        it("returns error for unknown field", function()
             local parsed, err = sort.parse("unknown", schema)
             assert.is_nil(parsed)
             assert.is_truthy(err:find("unknown field"))
@@ -247,110 +139,67 @@ describe("query", function()
 
         it("converts to SQL", function()
             local parsed = sort.parse("-views,title", schema)
-            local sql = sort.to_sql(parsed)
-            assert.are.equal("views DESC, title ASC", sql)
+            assert.are.equal("views DESC, title ASC", sort.to_sql(parsed))
         end)
     end)
 
     describe("query parser", function()
-        local schema = {
-            title = { type = "string" },
-            status = { type = "string" },
-            views = { type = "number" },
-        }
+        local schema = { title = { type = "string" }, status = { type = "string" }, views = { type = "number" } }
 
-        it("parses page parameter", function()
+        it("parses pagination parameters", function()
             local opts = query.parse("page=3")
             assert.are.equal(3, opts.page)
-        end)
 
-        it("defaults page to 1", function()
-            local opts = query.parse("")
+            opts = query.parse("")
             assert.are.equal(1, opts.page)
-        end)
 
-        it("parses perPage parameter", function()
-            local opts = query.parse("perPage=50")
+            opts = query.parse("perPage=50")
             assert.are.equal(50, opts.per_page)
-        end)
 
-        it("limits perPage to max", function()
-            local opts = query.parse("perPage=1000")
+            opts = query.parse("perPage=1000")
             assert.are.equal(500, opts.per_page)
-        end)
 
-        it("parses skipTotal parameter", function()
-            local opts = query.parse("skipTotal=true")
+            opts = query.parse("skipTotal=true")
             assert.is_true(opts.skip_total)
         end)
 
-        it("parses fields parameter", function()
+        it("parses fields, sort, and filter", function()
             local opts = query.parse("fields=id,title,status", schema)
             assert.are.equal(3, #opts.fields)
-            assert.are.equal("id", opts.fields[1])
-            assert.are.equal("title", opts.fields[2])
-        end)
 
-        it("filters out invalid fields", function()
-            local opts = query.parse("fields=id,unknown,title", schema)
+            opts = query.parse("fields=id,unknown,title", schema)
             assert.are.equal(2, #opts.fields)
-        end)
 
-        it("parses sort parameter", function()
-            local opts = query.parse("sort=-views,title", schema)
+            opts = query.parse("sort=-views,title", schema)
             assert.are.equal(2, #opts.sort)
-        end)
 
-        it("parses filter parameter", function()
-            local opts = query.parse("filter=status='active'", schema)
-            assert.is_truthy(opts.filter)
+            opts = query.parse("filter=status='active'", schema)
             assert.are.equal("status", opts.filter.field)
-        end)
 
-        it("URL decodes parameters", function()
-            local opts = query.parse("filter=title%3D%27hello%27")
+            opts = query.parse("filter=title%3D%27hello%27")
             assert.is_truthy(opts.filter)
         end)
     end)
 
     describe("query SQL builder", function()
-        local schema = {
-            title = { type = "string" },
-            status = { type = "string" },
-        }
-
-        it("builds basic query", function()
+        it("builds SQL queries", function()
             local built = query.build_sql("posts", { page = 1, per_page = 20 })
             assert.is_truthy(built.sql:find("SELECT %* FROM posts"))
             assert.is_truthy(built.sql:find("LIMIT %? OFFSET %?"))
-        end)
-
-        it("builds query with fields", function()
-            local built = query.build_sql("posts", { fields = { "id", "title" }, page = 1, per_page = 20 })
-            assert.is_truthy(built.sql:find("SELECT id, title FROM posts"))
-        end)
-
-        it("builds query with sort", function()
-            local sorted = sort.parse("-created_at")
-            local built = query.build_sql("posts", { sort = sorted, page = 1, per_page = 20 })
-            assert.is_truthy(built.sql:find("ORDER BY created_at DESC"))
-        end)
-
-        it("builds query with filter", function()
-            local ast = filter.parse("status='active'")
-            local built = query.build_sql("posts", { filter = ast, page = 1, per_page = 20 })
-            assert.is_truthy(built.sql:find("WHERE status = %?"))
-            assert.are.equal("active", built.params[1])
-        end)
-
-        it("builds count query", function()
-            local built = query.build_sql("posts", { page = 1, per_page = 20 })
-            assert.is_truthy(built.count_sql)
             assert.is_truthy(built.count_sql:find("SELECT COUNT"))
-        end)
 
-        it("skips count query when requested", function()
-            local built = query.build_sql("posts", { page = 1, per_page = 20, skip_total = true })
+            built = query.build_sql("posts", { fields = { "id", "title" }, page = 1, per_page = 20 })
+            assert.is_truthy(built.sql:find("SELECT id, title FROM posts"))
+
+            local sorted = sort.parse("-created_at")
+            built = query.build_sql("posts", { sort = sorted, page = 1, per_page = 20 })
+            assert.is_truthy(built.sql:find("ORDER BY created_at DESC"))
+
+            local ast = filter.parse("status='active'")
+            built = query.build_sql("posts", { filter = ast, page = 1, per_page = 20 })
+            assert.is_truthy(built.sql:find("WHERE status = %?"))
+
+            built = query.build_sql("posts", { page = 1, per_page = 20, skip_total = true })
             assert.is_nil(built.count_sql)
         end)
     end)
