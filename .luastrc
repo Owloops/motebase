@@ -9,4 +9,8 @@ return {
         incdirs = { "motebase/crypto" },
         modname = "motebase.crypto.hashings_c",
     },
+    ["motebase.poll_c"] = {
+        sources = { "motebase/poll.c" },
+        modname = "motebase.poll_c",
+    },
 }

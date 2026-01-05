@@ -1,4 +1,5 @@
 local socket = require("socket")
+local poll = require("motebase.poll")
 local router = require("motebase.router")
 local middleware = require("motebase.middleware")
 local log = require("motebase.utils.log")
@@ -315,7 +316,7 @@ function server.create(config)
                 end
             end
 
-            local readable, writable = socket.select(read_sockets, write_sockets, 0.1)
+            local readable, writable = poll.select(read_sockets, write_sockets, 0.1)
 
             if readable then
                 for _, sock in ipairs(readable) do
