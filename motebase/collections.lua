@@ -7,6 +7,10 @@ local query = require("motebase.query")
 
 local collections = {}
 
+-- Schema cache: invalidate on create/delete collection
+-- NOTE: if adding collection mutations, remember to invalidate
+local schema_cache = {}
+
 local function get_file_fields(collection_schema)
     local file_fields = {}
     for field_name, def in pairs(collection_schema) do
@@ -50,6 +54,7 @@ function collections.create(name, fields)
         db.insert("INSERT INTO _collections (name, schema) VALUES (?, ?)", { name, cjson.encode(fields) })
     if insert_err then return nil, insert_err end
 
+    schema_cache[name] = nil
     return true
 end
 
@@ -58,10 +63,13 @@ function collections.list()
 end
 
 function collections.get(name)
+    if schema_cache[name] then return schema_cache[name] end
+
     local rows = db.query("SELECT name, schema, created_at FROM _collections WHERE name = ?", { name })
     if not rows or #rows == 0 then return nil end
     local collection = rows[1]
     collection.schema = cjson.decode(collection.schema)
+    schema_cache[name] = collection
     return collection
 end
 
@@ -73,6 +81,7 @@ function collections.delete(name)
     if not ok then return nil, err end
 
     db.run("DELETE FROM _collections WHERE name = ?", { name })
+    schema_cache[name] = nil
     return true
 end
 
