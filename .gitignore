@@ -9,9 +9,7 @@ luac.out
 *.so
 *.dylib
 *.a
-motebase-bin*
-motebase-lua54*
-motebase-luajit*
+motebase-*
 .build/
 
 # Benchmark scripts (local only)

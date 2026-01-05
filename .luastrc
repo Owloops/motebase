@@ -1,0 +1,12 @@
+-- Custom C libraries for luast
+return {
+    ["motebase.crypto.hashings_c"] = {
+        sources = {
+            "motebase/crypto/hashings.c",
+            "motebase/crypto/sha256.c",
+            "motebase/crypto/hmac_sha256.c",
+        },
+        incdirs = { "motebase/crypto" },
+        modname = "motebase.crypto.hashings_c",
+    },
+}

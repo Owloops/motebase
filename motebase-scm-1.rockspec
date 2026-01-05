@@ -51,9 +51,14 @@ build = {
         ["motebase.storage"] = "motebase/storage/init.lua",
         ["motebase.storage.local"] = "motebase/storage/local.lua",
         ["motebase.crypto"] = "motebase/crypto/init.lua",
-        ["motebase.crypto.bit"] = "motebase/crypto/bit.lua",
-        ["motebase.crypto.hmac"] = "motebase/crypto/hmac.lua",
-        ["motebase.crypto.sha256"] = "motebase/crypto/sha256.lua",
+        ["motebase.crypto.hashings_c"] = {
+            sources = {
+                "motebase/crypto/hashings.c",
+                "motebase/crypto/sha256.c",
+                "motebase/crypto/hmac_sha256.c",
+            },
+            incdirs = { "motebase/crypto" },
+        },
         ["motebase.utils.log"] = "motebase/utils/log.lua",
         ["motebase.utils.output"] = "motebase/utils/output.lua",
         ["motebase.query"] = "motebase/query/init.lua",

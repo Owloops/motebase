@@ -1,19 +1,39 @@
-local sha256 = require("motebase.crypto.sha256")
-local hmac = require("motebase.crypto.hmac")
-local bit = require("motebase.crypto.bit")
+-- Crypto
 
-local band, bor, lshift, rshift = bit.band, bit.bor, bit.lshift, bit.rshift
-local byte, char, format, rep = string.byte, string.char, string.format, string.rep
+local hashings = require("motebase.crypto.hashings_c")
+
+local band, bor, bxor, lshift, rshift
+if rawget(_G, "jit") then
+    local b = require("bit")
+    band, bor, bxor, lshift, rshift = b.band, b.bor, b.bxor, b.lshift, b.rshift
+elseif _VERSION >= "Lua 5.3" then
+    band = load("return function(a, b) return a & b end")()
+    bor = load("return function(a, b) return a | b end")()
+    bxor = load("return function(a, b) return a ~ b end")()
+    lshift = load("return function(a, n) return a << n end")()
+    rshift = load("return function(a, n) return a >> n end")()
+else
+    local ok, b = pcall(require, "bit32")
+    if not ok then
+        ok, b = pcall(require, "bit")
+    end
+    if ok then
+        band, bor, bxor, lshift, rshift = b.band, b.bor, b.bxor, b.lshift, b.rshift
+    else
+        error("no bitwise library available")
+    end
+end
+local byte, char, format, rep, sub = string.byte, string.char, string.format, string.rep, string.sub
 local concat = table.concat
 
 local crypto = {}
 
 function crypto.sha256(message)
-    return sha256(message):digest()
+    return hashings.sha256(message)
 end
 
 function crypto.hmac_sha256(key, message)
-    return hmac(sha256, key, message):digest()
+    return hashings.hmac_sha256(key, message)
 end
 
 function crypto.to_hex(data)
@@ -26,10 +46,10 @@ end
 
 -- base64 --
 
-local b64chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-local b64lookup = {}
+local B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+local B64_LOOKUP = {}
 for i = 1, 64 do
-    b64lookup[b64chars:sub(i, i)] = i - 1
+    B64_LOOKUP[sub(B64, i, i)] = i - 1
 end
 
 function crypto.base64_encode(data)
@@ -38,13 +58,13 @@ function crypto.base64_encode(data)
     if mod > 0 then data = data .. rep("\0", 3 - mod) end
     for i = 1, #data, 3 do
         local n = bor(bor(lshift(byte(data, i), 16), lshift(byte(data, i + 1), 8)), byte(data, i + 2))
-        result[#result + 1] = b64chars:sub(rshift(n, 18) + 1, rshift(n, 18) + 1)
-            .. b64chars:sub(band(rshift(n, 12), 63) + 1, band(rshift(n, 12), 63) + 1)
-            .. b64chars:sub(band(rshift(n, 6), 63) + 1, band(rshift(n, 6), 63) + 1)
-            .. b64chars:sub(band(n, 63) + 1, band(n, 63) + 1)
+        result[#result + 1] = sub(B64, rshift(n, 18) + 1, rshift(n, 18) + 1)
+            .. sub(B64, band(rshift(n, 12), 63) + 1, band(rshift(n, 12), 63) + 1)
+            .. sub(B64, band(rshift(n, 6), 63) + 1, band(rshift(n, 6), 63) + 1)
+            .. sub(B64, band(n, 63) + 1, band(n, 63) + 1)
     end
     local encoded = concat(result)
-    if mod > 0 then encoded = encoded:sub(1, -(3 - mod) - 1) .. rep("=", 3 - mod) end
+    if mod > 0 then encoded = sub(encoded, 1, -(3 - mod) - 1) .. rep("=", 3 - mod) end
     return encoded
 end
 
@@ -55,13 +75,13 @@ function crypto.base64_decode(data)
     local result = {}
     for i = 1, #data, 4 do
         local n = bor(
-            bor(lshift(b64lookup[data:sub(i, i)], 18), lshift(b64lookup[data:sub(i + 1, i + 1)], 12)),
-            bor(lshift(b64lookup[data:sub(i + 2, i + 2)], 6), b64lookup[data:sub(i + 3, i + 3)])
+            bor(lshift(B64_LOOKUP[sub(data, i, i)], 18), lshift(B64_LOOKUP[sub(data, i + 1, i + 1)], 12)),
+            bor(lshift(B64_LOOKUP[sub(data, i + 2, i + 2)], 6), B64_LOOKUP[sub(data, i + 3, i + 3)])
         )
         result[#result + 1] = char(band(rshift(n, 16), 0xFF), band(rshift(n, 8), 0xFF), band(n, 0xFF))
     end
     local decoded = concat(result)
-    return pad > 0 and decoded:sub(1, -pad - 1) or decoded
+    return pad > 0 and sub(decoded, 1, -pad - 1) or decoded
 end
 
 function crypto.base64url_encode(data)
@@ -74,8 +94,6 @@ function crypto.base64url_decode(data)
     if pad > 0 and pad < 4 then b64 = b64 .. rep("=", pad) end
     return crypto.base64_decode(b64)
 end
-
-local bxor = bit.bxor
 
 function crypto.constant_time_compare(a, b)
     if #a ~= #b then return false end
