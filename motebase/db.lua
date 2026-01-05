@@ -9,6 +9,7 @@ function db.open(path)
     local err
     conn, err = sqlite3.open(path)
     if not conn then return nil, "failed to open database: " .. (err or "unknown error") end
+    conn:busy_timeout(5000)
     conn:exec("PRAGMA foreign_keys = ON")
     conn:exec("PRAGMA journal_mode = WAL")
     conn:exec("PRAGMA synchronous = NORMAL")
