@@ -10,7 +10,12 @@ luac.out
 *.dylib
 *.a
 motebase-bin*
+motebase-lua54*
+motebase-luajit*
 .build/
+
+# Benchmark scripts (local only)
+bench/
 
 # Local files
 *.local.md

@@ -59,7 +59,7 @@ Self-contained database with WAL mode. Files on disk with metadata in SQLite.
 
 **Tiny Footprint**
 
-~2MB binary. ~2MB Docker image. Pure Lua, cross-platform.
+~2MB binary. ~2MB Docker image. LuaJIT-powered, cross-platform.
 
 </td>
 </tr>
@@ -104,12 +104,17 @@ See [Deployment](#deployment) for docker-compose with automatic HTTPS.
 
 ```bash
 # Install dependencies
-luarocks --local install luasocket lsqlite3complete lua-cjson
+luarocks --local install luasocket lsqlite3complete lua-cjson luafilesystem lpeg
 eval "$(luarocks path --bin)"
 
-# Run
-./bin/motebase.lua
+# Run with Lua 5.4
+lua ./bin/motebase.lua
+
+# Or with LuaJIT (recommended, better performance)
+luajit ./bin/motebase.lua
 ```
+
+> **Note:** Both Lua 5.4 and LuaJIT are supported. LuaJIT is recommended for production as it provides better performance in our testing. Static binaries are built with LuaJIT.
 
 ## Usage
 
