@@ -1,30 +1,16 @@
--- Bit operations (MIT, John Schember)
-
 local bit
 
-if _VERSION >= "Lua 5.3" then
-    bit = {
-        band = function(a, b)
-            return a & b
-        end,
-        bor = function(a, b)
-            return a | b
-        end,
-        bxor = function(a, b)
-            return a ~ b
-        end,
-        bnot = function(a)
-            return ~a
-        end,
-        lshift = function(a, n)
-            return a << n
-        end,
-        rshift = function(a, n)
-            return a >> n
-        end,
-    }
-elseif rawget(_G, "jit") then
+if rawget(_G, "jit") then
     bit = require("bit")
+elseif _VERSION >= "Lua 5.3" then
+    bit = {
+        band = load("return function(a, b) return a & b end")(),
+        bor = load("return function(a, b) return a | b end")(),
+        bxor = load("return function(a, b) return a ~ b end")(),
+        bnot = load("return function(a) return ~a end")(),
+        lshift = load("return function(a, n) return a << n end")(),
+        rshift = load("return function(a, n) return a >> n end")(),
+    }
 else
     local ok, lib = pcall(require, "bit32")
     if not ok then
