@@ -102,4 +102,107 @@ describe("collections", function()
             assert.is_nil(collections.get_record("posts", 999))
         end)
     end)
+
+    describe("relations", function()
+        before_each(function()
+            collections.create("users", {
+                name = { type = "string", required = true },
+            })
+            collections.create("posts", {
+                title = { type = "string", required = true },
+                author = { type = "relation", collection = "users" },
+            })
+            collections.create("tags", {
+                name = { type = "string", required = true },
+            })
+            collections.create("articles", {
+                title = { type = "string", required = true },
+                tags = { type = "relation", collection = "tags", multiple = true },
+            })
+        end)
+
+        it("creates record with single relation", function()
+            collections.create_record("users", { name = "Alice" })
+            local record = collections.create_record("posts", { title = "Hello", author = 1 })
+
+            assert.is_truthy(record)
+            assert.is_truthy(record.author)
+        end)
+
+        it("creates record with multiple relation", function()
+            collections.create_record("tags", { name = "lua" })
+            collections.create_record("tags", { name = "database" })
+            local record = collections.create_record("articles", { title = "Test", tags = { 1, 2 } })
+
+            assert.is_truthy(record)
+            assert.is_truthy(record.tags)
+        end)
+
+        it("expands single relation in list_records", function()
+            collections.create_record("users", { name = "Alice" })
+            collections.create_record("posts", { title = "Hello", author = 1 })
+
+            local result = collections.list_records("posts", "expand=author")
+            assert.are.equal(1, #result.items)
+            assert.is_truthy(result.items[1].expand)
+            assert.is_truthy(result.items[1].expand.author)
+            assert.are.equal("Alice", result.items[1].expand.author.name)
+        end)
+
+        it("expands single relation in get_record", function()
+            collections.create_record("users", { name = "Bob" })
+            collections.create_record("posts", { title = "World", author = 1 })
+
+            local record = collections.get_record("posts", 1, "author")
+            assert.is_truthy(record.expand)
+            assert.is_truthy(record.expand.author)
+            assert.are.equal("Bob", record.expand.author.name)
+        end)
+
+        it("expands multiple relation", function()
+            collections.create_record("tags", { name = "lua" })
+            collections.create_record("tags", { name = "api" })
+            collections.create_record("articles", { title = "Test", tags = { 1, 2 } })
+
+            local result = collections.list_records("articles", "expand=tags")
+            assert.is_truthy(result.items[1].expand)
+            assert.is_truthy(result.items[1].expand.tags)
+            assert.are.equal(2, #result.items[1].expand.tags)
+        end)
+
+        it("expands back-relation", function()
+            collections.create_record("users", { name = "Alice" })
+            collections.create_record("posts", { title = "Post 1", author = 1 })
+            collections.create_record("posts", { title = "Post 2", author = 1 })
+
+            local result = collections.list_records("users", "expand=posts_via_author")
+            assert.is_truthy(result.items[1].expand)
+            assert.is_truthy(result.items[1].expand.posts_via_author)
+            assert.are.equal(2, #result.items[1].expand.posts_via_author)
+        end)
+
+        it("returns error for invalid expand syntax", function()
+            collections.create_record("users", { name = "Alice" })
+
+            local result, err = collections.list_records("users", "expand=...")
+            assert.is_nil(result)
+            assert.is_truthy(err)
+        end)
+
+        it("handles missing relation gracefully", function()
+            collections.create_record("posts", { title = "No Author" })
+
+            local result = collections.list_records("posts", "expand=author")
+            assert.are.equal(1, #result.items)
+            assert.is_nil(result.items[1].expand)
+        end)
+
+        it("handles non-existent target in expand", function()
+            collections.create_record("posts", { title = "Bad Ref", author = 999 })
+
+            local result = collections.list_records("posts", "expand=author")
+            assert.are.equal(1, #result.items)
+            assert.is_nil(result.items[1].expand.author)
+        end)
+    end)
 end)

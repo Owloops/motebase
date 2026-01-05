@@ -67,7 +67,72 @@ describe("schema", function()
             assert.are.equal("TEXT", schema.field_to_sql_type("email"))
             assert.are.equal("REAL", schema.field_to_sql_type("number"))
             assert.are.equal("INTEGER", schema.field_to_sql_type("boolean"))
+            assert.are.equal("TEXT", schema.field_to_sql_type("relation"))
             assert.are.equal("TEXT", schema.field_to_sql_type("unknown"))
+        end)
+    end)
+
+    describe("relation field", function()
+        it("validates single relation", function()
+            local field_def = { type = "relation", collection = "users" }
+            local val = schema.validate_field(1, "relation", false, field_def)
+            assert.are.equal("1", val)
+
+            val = schema.validate_field("42", "relation", false, field_def)
+            assert.are.equal("42", val)
+        end)
+
+        it("validates multiple relation", function()
+            local field_def = { type = "relation", collection = "tags", multiple = true }
+            local val = schema.validate_field({ 1, 2, 3 }, "relation", false, field_def)
+            assert.are.same({ 1, 2, 3 }, val)
+
+            val = schema.validate_field({ "1", "2" }, "relation", false, field_def)
+            assert.are.same({ "1", "2" }, val)
+        end)
+
+        it("rejects invalid single relation", function()
+            local field_def = { type = "relation", collection = "users" }
+            local val, err = schema.validate_field({ 1, 2 }, "relation", false, field_def)
+            assert.is_nil(val)
+            assert.are.equal("expected ID string or number", err)
+
+            val, err = schema.validate_field(true, "relation", false, field_def)
+            assert.is_nil(val)
+            assert.are.equal("expected ID string or number", err)
+        end)
+
+        it("rejects invalid multiple relation", function()
+            local field_def = { type = "relation", collection = "tags", multiple = true }
+            local val, err = schema.validate_field("not-an-array", "relation", false, field_def)
+            assert.is_nil(val)
+            assert.are.equal("expected array of IDs", err)
+
+            val, err = schema.validate_field({ 1, true, 3 }, "relation", false, field_def)
+            assert.is_nil(val)
+            assert.is_truthy(err:find("invalid ID"))
+        end)
+
+        it("allows nil for optional relation", function()
+            local field_def = { type = "relation", collection = "users" }
+            local val, err = schema.validate_field(nil, "relation", false, field_def)
+            assert.is_nil(val)
+            assert.is_nil(err)
+        end)
+
+        it("requires value for required relation", function()
+            local field_def = { type = "relation", collection = "users" }
+            local val, err = schema.validate_field(nil, "relation", true, field_def)
+            assert.is_nil(val)
+            assert.are.equal("field is required", err)
+        end)
+    end)
+
+    describe("is_relation_field", function()
+        it("detects relation fields", function()
+            assert.is_true(schema.is_relation_field({ type = "relation", collection = "users" }))
+            assert.is_falsy(schema.is_relation_field({ type = "string" }))
+            assert.is_falsy(schema.is_relation_field(nil))
         end)
     end)
 end)

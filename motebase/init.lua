@@ -77,7 +77,14 @@ local function handle_get_record(ctx)
         return
     end
 
-    local record = collections.get_record(name, id)
+    -- extract expand from query string --
+    local expand_str
+    if ctx.query_string then
+        expand_str = ctx.query_string:match("expand=([^&]+)")
+        if expand_str then expand_str = expand_str:gsub("%%2C", ","):gsub("%%2E", ".") end
+    end
+
+    local record = collections.get_record(name, id, expand_str)
     if not record then
         server.error(ctx, 404, "record not found")
         return

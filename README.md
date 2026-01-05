@@ -241,6 +241,99 @@ curl "http://localhost:8080/api/collections/posts/records?skipTotal=true"
 }
 ```
 
+### Relations
+
+Link records between collections using relation fields:
+
+```bash
+# Create users collection
+curl -X POST http://localhost:8080/api/collections \
+  -H "Content-Type: application/json" \
+  -d '{"name":"users","schema":{"name":{"type":"string","required":true}}}'
+
+# Create posts collection with author relation
+curl -X POST http://localhost:8080/api/collections \
+  -H "Content-Type: application/json" \
+  -d '{"name":"posts","schema":{"title":{"type":"string","required":true},"author":{"type":"relation","collection":"users"}}}'
+
+# Create user
+curl -X POST http://localhost:8080/api/collections/users/records \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Alice"}'
+
+# Create post with relation
+curl -X POST http://localhost:8080/api/collections/posts/records \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Hello World","author":1}'
+```
+
+#### Multiple Relations
+
+Store arrays of references using `multiple: true`:
+
+```bash
+# Create tags collection
+curl -X POST http://localhost:8080/api/collections \
+  -H "Content-Type: application/json" \
+  -d '{"name":"tags","schema":{"name":{"type":"string","required":true}}}'
+
+# Create articles with multiple tags
+curl -X POST http://localhost:8080/api/collections \
+  -H "Content-Type: application/json" \
+  -d '{"name":"articles","schema":{"title":{"type":"string"},"tags":{"type":"relation","collection":"tags","multiple":true}}}'
+
+# Create article with tag IDs
+curl -X POST http://localhost:8080/api/collections/articles/records \
+  -H "Content-Type: application/json" \
+  -d '{"title":"My Article","tags":[1,2,3]}'
+```
+
+### Expand
+
+Fetch related records inline using `?expand=`:
+
+```bash
+# Expand single relation
+curl "http://localhost:8080/api/collections/posts/records?expand=author"
+
+# Expand multiple fields
+curl "http://localhost:8080/api/collections/articles/records?expand=author,tags"
+
+# Nested expand
+curl "http://localhost:8080/api/collections/posts/records?expand=author.company"
+
+# Back-relation (get posts by user)
+curl "http://localhost:8080/api/collections/users/records?expand=posts_via_author"
+
+# Single record with expand
+curl "http://localhost:8080/api/collections/posts/records/1?expand=author"
+```
+
+#### Expand Response
+
+```json
+{
+  "id": 1,
+  "title": "Hello World",
+  "author": "1",
+  "expand": {
+    "author": {
+      "id": 1,
+      "name": "Alice"
+    }
+  }
+}
+```
+
+#### Expand Syntax
+
+| Pattern | Description | Example |
+|---------|-------------|---------|
+| `field` | Single relation | `?expand=author` |
+| `field1,field2` | Multiple fields | `?expand=author,tags` |
+| `field.nested` | Nested expand | `?expand=author.company` |
+| `collection_via_field` | Back-relation | `?expand=posts_via_author` |
+
 ### Authentication
 
 ```bash
@@ -270,6 +363,7 @@ curl http://localhost:8080/api/auth/me \
 | `boolean` | True/false |
 | `json` | JSON object |
 | `file` | File upload (see File Storage) |
+| `relation` | Reference to another collection (see Relations) |
 
 ### File Storage
 

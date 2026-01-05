@@ -1,5 +1,6 @@
 local filter = require("motebase.query.filter")
 local sort = require("motebase.query.sort")
+local expand = require("motebase.query.expand")
 
 local query = {}
 
@@ -92,6 +93,11 @@ function query.parse(query_string, schema)
         end
     end
 
+    local expand_tree, expand_err
+    if params.expand and params.expand ~= "" then
+        expand_tree, expand_err = expand.parse(params.expand)
+    end
+
     return {
         page = page,
         per_page = per_page,
@@ -101,6 +107,8 @@ function query.parse(query_string, schema)
         sort_error = sort_err,
         filter = filter_ast,
         filter_error = filter_err,
+        expand = expand_tree,
+        expand_error = expand_err,
     }
 end
 

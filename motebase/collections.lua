@@ -4,6 +4,7 @@ local cjson = require("cjson")
 local files = require("motebase.files")
 local multipart = require("motebase.parser.multipart")
 local query = require("motebase.query")
+local expand = require("motebase.query.expand")
 
 local collections = {}
 
@@ -95,11 +96,15 @@ function collections.list_records(name, query_string)
 
     if opts.filter_error then return nil, opts.filter_error end
     if opts.sort_error then return nil, opts.sort_error end
+    if opts.expand_error then return nil, opts.expand_error end
 
     local built = query.build_sql(name, opts)
 
     local records = db.query(built.sql, built.params)
     if not records then return nil, "query failed" end
+
+    -- process expand --
+    if opts.expand and #records > 0 then records = expand.process(records, opts.expand, name, collections.get, 0) end
 
     local result = {
         page = opts.page,
@@ -126,10 +131,22 @@ function collections.list_records_simple(name, limit, offset)
     return db.query(sql, { limit, offset })
 end
 
-function collections.get_record(name, id)
+function collections.get_record(name, id, expand_string)
     local rows = db.query("SELECT * FROM " .. name .. " WHERE id = ?", { id })
     if not rows or #rows == 0 then return nil end
-    return rows[1]
+
+    local record = rows[1]
+
+    -- process expand if provided --
+    if expand_string and expand_string ~= "" then
+        local expand_tree = expand.parse(expand_string)
+        if expand_tree then
+            local records = expand.process({ record }, expand_tree, name, collections.get, 0)
+            record = records[1]
+        end
+    end
+
+    return record
 end
 
 function collections.create_record(name, data, multipart_parts)

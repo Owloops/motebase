@@ -43,9 +43,26 @@ local validators = {
         if type(value) == "string" then return value end
         return nil, "invalid file"
     end,
+
+    relation = function(value, field_def)
+        if value == nil then return nil end
+
+        local multiple = field_def and field_def.multiple
+
+        if multiple then
+            if type(value) ~= "table" then return nil, "expected array of IDs" end
+            for i, id in ipairs(value) do
+                if type(id) ~= "string" and type(id) ~= "number" then return nil, "invalid ID at index " .. i end
+            end
+            return value
+        else
+            if type(value) ~= "string" and type(value) ~= "number" then return nil, "expected ID string or number" end
+            return tostring(value)
+        end
+    end,
 }
 
-function schema.validate_field(value, field_type, required)
+function schema.validate_field(value, field_type, required, field_def)
     if value == nil then
         if required then return nil, "field is required" end
         return nil
@@ -54,7 +71,7 @@ function schema.validate_field(value, field_type, required)
     local validator = validators[field_type]
     if not validator then return nil, "unknown field type: " .. field_type end
 
-    return validator(value)
+    return validator(value, field_def)
 end
 
 function schema.validate(data, fields)
@@ -65,7 +82,7 @@ function schema.validate(data, fields)
         local field_type = def.type or "string"
         local required = def.required or false
 
-        local value, err = schema.validate_field(data[name], field_type, required)
+        local value, err = schema.validate_field(data[name], field_type, required, def)
         if err then
             errors[name] = err
         else
@@ -86,8 +103,13 @@ function schema.field_to_sql_type(field_type)
         boolean = "INTEGER",
         json = "TEXT",
         file = "TEXT",
+        relation = "TEXT", -- stores ID (single) or JSON array (multiple)
     }
     return types[field_type] or "TEXT"
+end
+
+function schema.is_relation_field(field_def)
+    return field_def and field_def.type == "relation"
 end
 
 return schema
