@@ -65,29 +65,28 @@ local function main()
     local motebase = require("motebase")
     local output = require("motebase.utils.output")
 
-    local srv, srv_config = motebase.start(config)
+    local srv, err = motebase.start(config)
     if not srv then
-        io.stderr:write(
-            output.color("red") .. "✗" .. output.reset() .. " failed to start: " .. tostring(srv_config) .. "\n"
-        )
+        io.stderr:write(output.color("red") .. "✗" .. output.reset() .. " failed to start: " .. tostring(err) .. "\n")
         os.exit(1)
     end
 
+    local cfg = srv:config()
     io.stderr:write(
         output.color("green")
             .. "✓"
             .. output.reset()
             .. " motebase running on http://"
-            .. srv_config.host
+            .. cfg.host
             .. ":"
-            .. srv_config.port
+            .. cfg.port
             .. "\n"
     )
-    io.stderr:write(output.color("blue") .. "→" .. output.reset() .. " database: " .. srv_config.db_path .. "\n")
-    io.stderr:write(output.color("blue") .. "→" .. output.reset() .. " storage: " .. srv_config.storage_path .. "\n")
+    io.stderr:write(output.color("blue") .. "→" .. output.reset() .. " database: " .. cfg.db_path .. "\n")
+    io.stderr:write(output.color("blue") .. "→" .. output.reset() .. " storage: " .. cfg.storage_path .. "\n")
     io.stderr:write(output.color("bright_black") .. "→" .. output.reset() .. " press Ctrl+C to stop\n")
 
-    if srv_config.secret == "change-me-in-production" then
+    if cfg.secret == "change-me-in-production" then
         io.stderr:write(
             output.color("yellow")
                 .. "!"

@@ -310,8 +310,8 @@ function motebase.start(config)
 
     setup_routes()
 
-    local srv, srv_config = server.create(config)
-    return srv, srv_config
+    local srv = server.create(config)
+    return srv
 end
 
 function motebase.stop()

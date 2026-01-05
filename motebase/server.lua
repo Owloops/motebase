@@ -16,6 +16,9 @@ local status_text = {
     [500] = "Internal Server Error",
 }
 
+local DEFAULT_KEEP_ALIVE_TIMEOUT = 5
+local DEFAULT_KEEP_ALIVE_MAX = 100
+
 -- socket --
 
 local function create_client_wrapper(client)
@@ -25,6 +28,8 @@ local function create_client_wrapper(client)
         read_buffer = "",
         write_buffer = "",
         last_activity = socket.gettime(),
+        request_count = 0,
+        keep_alive = true,
     }
 end
 
@@ -121,12 +126,18 @@ local function read_body(wrapper, headers)
     return receive_bytes(wrapper, content_length)
 end
 
-local function send_response(wrapper, status, headers, body)
+local function send_response(wrapper, status, headers, body, keep_alive)
     local response = "HTTP/1.1 " .. status .. " " .. (status_text[status] or "OK") .. "\r\n"
 
     headers = headers or {}
     if body then headers["Content-Length"] = #body end
-    headers["Connection"] = "close"
+
+    if keep_alive then
+        headers["Connection"] = "keep-alive"
+        headers["Keep-Alive"] = "timeout=" .. DEFAULT_KEEP_ALIVE_TIMEOUT .. ", max=" .. DEFAULT_KEEP_ALIVE_MAX
+    else
+        headers["Connection"] = "close"
+    end
 
     for name, value in pairs(headers) do
         response = response .. name .. ": " .. value .. "\r\n"
@@ -155,21 +166,38 @@ local function create_context(method, path, headers, body, config)
     }
 end
 
-local function handle_client(wrapper, config)
+local function should_keep_alive(http_version, headers, wrapper, config)
+    if wrapper.request_count >= (config.keep_alive_max or DEFAULT_KEEP_ALIVE_MAX) then return false end
+
+    local connection = headers["connection"]
+    if connection then
+        connection = connection:lower()
+        if connection == "close" then return false end
+        if connection == "keep-alive" then return true end
+    end
+
+    return tonumber(http_version) >= 1.1
+end
+
+local function handle_request(wrapper, config)
+    wrapper.request_count = wrapper.request_count + 1
+
     local line, err = receive_line(wrapper)
-    if err then return false, err end
+    if err then return false, false, err end
 
     local req = parse_request_line(line)
     if not req then
-        send_response(wrapper, 400, {}, "Bad Request")
-        return false, "bad request"
+        send_response(wrapper, 400, {}, "Bad Request", false)
+        return false, false, "bad request"
     end
 
     local headers, headers_err = parse_headers(wrapper)
-    if headers_err then return false, headers_err end
+    if headers_err then return false, false, headers_err end
+
+    local keep_alive = should_keep_alive(req.version, headers, wrapper, config)
 
     local body_raw, body_err = read_body(wrapper, headers)
-    if body_err then return false, body_err end
+    if body_err then return false, false, body_err end
 
     local path = req.location.path or "/"
     local query = req.location.query
@@ -177,17 +205,17 @@ local function handle_client(wrapper, config)
     if middleware.is_preflight(req.method) then
         local cors = middleware.cors_headers()
         cors["Content-Length"] = "0"
-        send_response(wrapper, 204, cors, nil)
+        send_response(wrapper, 204, cors, nil, keep_alive)
         log.info("http", req.method .. " " .. path .. " 204")
-        return true
+        return true, keep_alive, nil
     end
 
     local body, parse_err, is_multipart = middleware.parse_body(body_raw, headers)
     if parse_err then
         local cors = middleware.cors_headers()
         cors["Content-Type"] = "application/json"
-        send_response(wrapper, 400, cors, middleware.encode_json({ error = parse_err }))
-        return true
+        send_response(wrapper, 400, cors, middleware.encode_json({ error = parse_err }), keep_alive)
+        return true, keep_alive, nil
     end
 
     local ctx = create_context(req.method, path, headers, body, config)
@@ -206,9 +234,9 @@ local function handle_client(wrapper, config)
     if not handler then
         local cors = middleware.cors_headers()
         cors["Content-Type"] = "application/json"
-        send_response(wrapper, 404, cors, middleware.encode_json({ error = "not found" }))
+        send_response(wrapper, 404, cors, middleware.encode_json({ error = "not found" }), keep_alive)
         log.info("http", req.method .. " " .. path .. " 404")
-        return true
+        return true, keep_alive, nil
     end
 
     ctx.params = params or {}
@@ -218,8 +246,8 @@ local function handle_client(wrapper, config)
         io.stderr:write("handler error: " .. tostring(handler_err) .. "\n")
         local cors = middleware.cors_headers()
         cors["Content-Type"] = "application/json"
-        send_response(wrapper, 500, cors, middleware.encode_json({ error = "internal server error" }))
-        return true
+        send_response(wrapper, 500, cors, middleware.encode_json({ error = "internal server error" }), false)
+        return true, false, nil
     end
 
     local resp_headers = middleware.cors_headers()
@@ -227,9 +255,20 @@ local function handle_client(wrapper, config)
         resp_headers[k] = v
     end
     local status = ctx._status or 200
-    send_response(wrapper, status, resp_headers, ctx._response_body)
+    send_response(wrapper, status, resp_headers, ctx._response_body, keep_alive)
     log.info("http", req.method .. " " .. path .. " " .. status)
-    return true
+    return true, keep_alive, nil
+end
+
+local function handle_client(wrapper, config)
+    while true do
+        local ok, keep_alive, err = handle_request(wrapper, config)
+
+        if not ok then return false, err end
+        if not keep_alive then return true, nil end
+
+        wrapper.keep_alive = true
+    end
 end
 
 -- server --
@@ -240,6 +279,8 @@ function server.create(config)
     config.port = config.port or 8080
     config.secret = config.secret or os.getenv("MOTEBASE_SECRET") or "change-me-in-production"
     config.timeout = config.timeout or 30
+    config.keep_alive_timeout = config.keep_alive_timeout or DEFAULT_KEEP_ALIVE_TIMEOUT
+    config.keep_alive_max = config.keep_alive_max or DEFAULT_KEEP_ALIVE_MAX
 
     local srv, err = socket.bind(config.host, config.port)
     if not srv then return nil, "failed to bind: " .. (err or "unknown error") end
@@ -337,7 +378,8 @@ function server.create(config)
             local new_clients = {}
             for _, c in ipairs(clients) do
                 if c.waiting then
-                    if now - c.wrapper.last_activity > config.timeout then
+                    local timeout = c.wrapper.request_count > 0 and config.keep_alive_timeout or config.timeout
+                    if now - c.wrapper.last_activity > timeout then
                         c.wrapper.socket:close()
                     else
                         table.insert(new_clients, c)
@@ -363,7 +405,11 @@ function server.create(config)
         return #self._clients
     end
 
-    return instance, config
+    function instance:config()
+        return self._config
+    end
+
+    return instance
 end
 
 -- response --
@@ -391,5 +437,8 @@ function server.download(ctx, status, data, filename, mime_type)
     ctx._response_headers["Content-Disposition"] = 'attachment; filename="' .. (filename or "download") .. '"'
     ctx._response_body = data
 end
+
+server._should_keep_alive = should_keep_alive
+server._DEFAULT_KEEP_ALIVE_MAX = DEFAULT_KEEP_ALIVE_MAX
 
 return server
