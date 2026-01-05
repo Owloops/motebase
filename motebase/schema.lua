@@ -47,6 +47,12 @@ local validators = {
     relation = function(value, field_def)
         if value == nil then return nil end
 
+        local function normalize_id(id)
+            local n = tonumber(id)
+            if n and n == math.floor(n) then return tostring(math.floor(n)) end
+            return tostring(id)
+        end
+
         local multiple = field_def and field_def.multiple
 
         if multiple then
@@ -57,7 +63,7 @@ local validators = {
             return value
         else
             if type(value) ~= "string" and type(value) ~= "number" then return nil, "expected ID string or number" end
-            return tostring(value)
+            return normalize_id(value)
         end
     end,
 }
