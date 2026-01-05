@@ -36,14 +36,10 @@ jobs:
         with:
           luaVersion: "5.4"
       - uses: leafo/gh-actions-luarocks@v4
-      - name: Install dependencies
+      - name: Install dependencies and build
         run: |
-          luarocks install luasocket
-          luarocks install lsqlite3complete
-          luarocks install lua-cjson
-          luarocks install luafilesystem
-          luarocks install lpeg
           luarocks install busted
+          luarocks make
       - run: busted
 
   build:
@@ -56,6 +52,7 @@ jobs:
           output: motebase-bin
           targets: linux-x86_64 linux-arm64 darwin-x86_64 darwin-arm64
           lua-version: jit
+          clibs: motebase.crypto.hashings_c
       - uses: actions/upload-artifact@v4
         with:
           name: binaries
