@@ -63,11 +63,10 @@ describe("poll", function()
             local sock = socket.udp()
             sock:setsockname("127.0.0.1", 0)
 
-            local readable, writable, err = poll.select({ sock }, {}, 0.01)
+            local readable, writable = poll.select({ sock }, {}, 0.01)
 
             assert.are.same({}, readable)
             assert.are.same({}, writable)
-            assert.are.equal("timeout", err)
             sock:close()
         end)
 

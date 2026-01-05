@@ -52,7 +52,7 @@ jobs:
           output: motebase-bin
           targets: linux-x86_64 linux-arm64 darwin-x86_64 darwin-arm64
           lua-version: jit
-          clibs: motebase.crypto.hashings_c
+          clibs: motebase.crypto.hashings_c motebase.poll_c
       - uses: actions/upload-artifact@v4
         with:
           name: binaries

@@ -1,10 +1,9 @@
 /**
  * \file            poll.c
  * \brief           POSIX poll() binding - removes select() FD_SETSIZE limit
- */
-
-/*
- * Based on https://github.com/FreeMasen/luasocket-poll-api-test
+ *
+ * Based on proof-of-concept by Robert Masen (@FreeMasen)
+ * https://github.com/lunarmodules/luasocket/issues/446
  */
 
 #include <lua.h>
@@ -12,7 +11,6 @@
 
 #include <poll.h>
 #include <errno.h>
-#include <string.h>
 
 #define MAX_POLL_FDS 4096
 
@@ -37,20 +35,19 @@ getfd(lua_State *L)
 static int
 collect_poll_args(lua_State *L, int tab, int fd_to_sock_tab, struct pollfd *fds)
 {
-    int i = 1, n = 0;
+    int i, n = 0;
 
     if (lua_isnil(L, tab)) {
         return 0;
     }
     luaL_checktype(L, tab, LUA_TTABLE);
 
-    for (;;) {
+    for (i = 1; ; i++) {
         int fd;
         short events;
         int info;
 
-        lua_pushinteger(L, i);
-        lua_gettable(L, tab);
+        lua_rawgeti(L, tab, i);
         if (lua_isnil(L, -1)) {
             lua_pop(L, 1);
             break;
@@ -64,7 +61,7 @@ collect_poll_args(lua_State *L, int tab, int fd_to_sock_tab, struct pollfd *fds)
         if (fd != -1) {
             lua_pushinteger(L, fd);
             lua_pushvalue(L, -2);
-            lua_settable(L, fd_to_sock_tab);
+            lua_rawset(L, fd_to_sock_tab);
         }
         lua_pop(L, 1);
 
@@ -90,7 +87,6 @@ collect_poll_args(lua_State *L, int tab, int fd_to_sock_tab, struct pollfd *fds)
         }
 
         lua_pop(L, 1);
-        i++;
     }
     return n;
 }
@@ -119,7 +115,6 @@ l_poll(lua_State *L)
     lua_newtable(L);
     fd_to_sock_tab = lua_gettop(L);
 
-    memset(fds, 0, sizeof(fds));
     fd_count = collect_poll_args(L, 1, fd_to_sock_tab, fds);
 
     result = poll(fds, (nfds_t)fd_count, timeout_ms);
@@ -162,31 +157,153 @@ l_poll(lua_State *L)
         int is_writable = (fds[i].revents & POLLOUT) != 0;
 
         if (is_readable || is_writable) {
-            int entry;
-
-            ready_count++;
-            lua_newtable(L);
-            entry = lua_gettop(L);
+            lua_createtable(L, 0, 3);
 
             lua_pushinteger(L, fds[i].fd);
-            lua_gettable(L, fd_to_sock_tab);
-            lua_setfield(L, entry, "sock");
+            lua_rawget(L, fd_to_sock_tab);
+            lua_setfield(L, -2, "sock");
 
             lua_pushboolean(L, is_readable);
-            lua_setfield(L, entry, "read");
+            lua_setfield(L, -2, "read");
 
             lua_pushboolean(L, is_writable);
-            lua_setfield(L, entry, "write");
+            lua_setfield(L, -2, "write");
 
-            lua_rawseti(L, result_tab, ready_count);
+            lua_rawseti(L, result_tab, ++ready_count);
         }
     }
 
     return 1;
 }
 
+/**
+ * \brief           Collect sockets from array into pollfd array
+ * \param[in]       L: Lua state
+ * \param[in]       tab: Stack index of socket array
+ * \param[in]       fd_to_sock_tab: Stack index of fd->socket mapping table
+ * \param[in]       fds: pollfd array to fill
+ * \param[in]       start: Starting index in fds array
+ * \param[in]       events: POLLIN or POLLOUT
+ * \return          New count in fds array
+ */
+static int
+collect_select_sockets(lua_State *L, int tab, int fd_to_sock_tab,
+                       struct pollfd *fds, int start, short events)
+{
+    int i, j, n = start;
+
+    if (lua_isnil(L, tab)) {
+        return n;
+    }
+
+    for (i = 1; ; i++) {
+        int fd, found;
+
+        lua_rawgeti(L, tab, i);
+        if (lua_isnil(L, -1)) {
+            lua_pop(L, 1);
+            break;
+        }
+
+        fd = getfd(L);
+        if (fd == -1 || n >= MAX_POLL_FDS) {
+            lua_pop(L, 1);
+            continue;
+        }
+
+        lua_pushinteger(L, fd);
+        lua_pushvalue(L, -2);
+        lua_rawset(L, fd_to_sock_tab);
+
+        found = 0;
+        for (j = 0; j < n; j++) {
+            if (fds[j].fd == fd) {
+                fds[j].events |= events;
+                found = 1;
+                break;
+            }
+        }
+
+        if (!found) {
+            fds[n].fd = fd;
+            fds[n].events = events | POLLERR | POLLHUP;
+            fds[n].revents = 0;
+            n++;
+        }
+
+        lua_pop(L, 1);
+    }
+
+    return n;
+}
+
+/**
+ * \brief           select-compatible poll wrapper
+ * \param[in]       L: Lua state (arg1: readers, arg2: writers, arg3: timeout)
+ * \return          2 (readable, writable arrays)
+ *
+ * Input: select({sock1, sock2}, {sock3}, timeout)
+ * Output: {readable_socks}, {writable_socks}
+ */
+static int
+l_select(lua_State *L)
+{
+    struct pollfd fds[MAX_POLL_FDS];
+    int fd_to_sock_tab;
+    int timeout_ms;
+    int fd_count, result;
+    int readable_count = 0, writable_count = 0;
+    int readable_tab, writable_tab;
+    int i;
+    double timeout;
+
+    timeout = luaL_optnumber(L, 3, 0);
+    timeout_ms = (int)(timeout * 1000);
+
+    lua_settop(L, 3);
+
+    lua_newtable(L);
+    fd_to_sock_tab = lua_gettop(L);
+
+    fd_count = 0;
+    fd_count = collect_select_sockets(L, 1, fd_to_sock_tab, fds, fd_count, POLLIN);
+    fd_count = collect_select_sockets(L, 2, fd_to_sock_tab, fds, fd_count, POLLOUT);
+
+    lua_newtable(L);
+    readable_tab = lua_gettop(L);
+
+    lua_newtable(L);
+    writable_tab = lua_gettop(L);
+
+    if (fd_count == 0) {
+        return 2;
+    }
+
+    result = poll(fds, (nfds_t)fd_count, timeout_ms);
+
+    if (result <= 0) {
+        return 2;
+    }
+
+    for (i = 0; i < fd_count; i++) {
+        if (fds[i].revents & POLLIN) {
+            lua_pushinteger(L, fds[i].fd);
+            lua_rawget(L, fd_to_sock_tab);
+            lua_rawseti(L, readable_tab, ++readable_count);
+        }
+        if (fds[i].revents & POLLOUT) {
+            lua_pushinteger(L, fds[i].fd);
+            lua_rawget(L, fd_to_sock_tab);
+            lua_rawseti(L, writable_tab, ++writable_count);
+        }
+    }
+
+    return 2;
+}
+
 static const luaL_Reg poll_funcs[] = {
     {"poll", l_poll},
+    {"select", l_select},
     {NULL, NULL},
 };
 
