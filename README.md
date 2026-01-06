@@ -20,91 +20,34 @@ Tiny self-hosted PocketBase alternative.
 
 **Dynamic Collections**
 
-Create collections with typed schemas at runtime. Auto-generated CRUD endpoints.
+Create collections with typed schemas at runtime. Auto-generated CRUD endpoints with filtering, sorting, and pagination.
 
 </td>
 <td width="50%">
 
-**Query & Filter**
+**JWT Auth & API Rules**
 
-PocketBase-compatible filter syntax. Sort, paginate, and select fields.
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-**JWT Authentication**
-
-Register, login, and protect routes. HMAC-SHA256 signing with `jti` for revocation.
-
-</td>
-<td width="50%">
-
-**File Storage**
-
-Upload files via multipart forms. Protected files with short-lived tokens.
+Register, login, and protect routes. PocketBase-compatible access control per collection.
 
 </td>
 </tr>
 <tr>
 <td width="50%">
 
-**SQLite + Filesystem**
+**Relations & Realtime**
 
-Self-contained database with WAL mode. Files on disk with metadata in SQLite.
+Link records between collections. Subscribe to changes via Server-Sent Events.
 
 </td>
 <td width="50%">
 
 **Tiny Footprint**
 
-~2MB binary. ~2MB Docker image. LuaJIT-powered, cross-platform.
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-**Relations & Expand**
-
-Link records between collections. Fetch related data inline with `?expand=`.
-
-</td>
-<td width="50%">
-
-**Realtime (SSE)**
-
-Subscribe to collection changes via Server-Sent Events. Live create/update/delete.
-
-</td>
-</tr>
-<tr>
-<td width="50%">
-
-**API Rules**
-
-PocketBase-compatible access control. List, view, create, update, delete rules per collection.
-
-</td>
-<td width="50%">
-
-**Rate Limiting**
-
-Token bucket algorithm. Per-endpoint limits. Protects auth endpoints from brute force.
+~2MB binary. <25ms startup. SQLite + filesystem storage. LuaJIT-powered.
 
 </td>
 </tr>
 </table>
-
-## Comparison
-
-| | Supabase | PocketBase | MoteBase |
-|---|----------|------------|----------|
-| Size | ~2GB+ | ~50MB | ~2MB |
-| Boot time | >1s | ~1s | <100ms |
-| Self-contained | No | Yes | Yes |
-| Filter syntax | PostgREST | Custom | PocketBase-compatible |
 
 ## Installation
 
