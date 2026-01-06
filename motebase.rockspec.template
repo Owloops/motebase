@@ -83,6 +83,14 @@ build = {
         ["motebase.poll_c"] = {
             sources = { "motebase/poll.c" },
         },
+        ["motebase.ratelimit"] = "motebase/ratelimit.lua",
+        ["motebase.rules"] = "motebase/rules/init.lua",
+        ["motebase.rules.parser"] = "motebase/rules/parser.lua",
+        ["motebase.rules.eval"] = "motebase/rules/eval.lua",
+        ["motebase.realtime"] = "motebase/realtime/init.lua",
+        ["motebase.realtime.broker"] = "motebase/realtime/broker.lua",
+        ["motebase.realtime.client"] = "motebase/realtime/client.lua",
+        ["motebase.realtime.sse"] = "motebase/realtime/sse.lua",
     },
     install = {
         bin = {
