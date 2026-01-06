@@ -63,6 +63,22 @@ Self-contained database with WAL mode. Files on disk with metadata in SQLite.
 
 </td>
 </tr>
+<tr>
+<td width="50%">
+
+**Relations & Expand**
+
+Link records between collections. Fetch related data inline with `?expand=`.
+
+</td>
+<td width="50%">
+
+**Realtime (SSE)**
+
+Subscribe to collection changes via Server-Sent Events. Live create/update/delete.
+
+</td>
+</tr>
 </table>
 
 ## Comparison
@@ -400,6 +416,36 @@ curl -X POST http://localhost:8080/api/files/token \
 # Access protected file with token
 curl "http://localhost:8080/api/files/private/1/doc_abc123.pdf?token=<file_token>"
 ```
+
+### Realtime (SSE)
+
+Subscribe to collection changes via Server-Sent Events:
+
+```bash
+# Open SSE connection (returns client ID)
+curl -N http://localhost:8080/api/realtime
+# Output: id:abc123... event:MB_CONNECT data:{"clientId":"abc123..."}
+
+# Subscribe to collection changes
+curl -X POST http://localhost:8080/api/realtime \
+  -H "Content-Type: application/json" \
+  -d '{"clientId":"abc123...","subscriptions":["posts/*"]}'
+```
+
+When records are created, updated, or deleted, subscribed clients receive events:
+
+```
+id:abc123...
+event:posts/*
+data:{"action":"create","record":{"id":1,"title":"Hello",...}}
+```
+
+#### Subscription Patterns
+
+| Pattern | Description | Example |
+|---------|-------------|---------|
+| `collection/*` | All records in collection | `posts/*` |
+| `collection/id` | Specific record | `posts/123` |
 
 ## Deployment
 
