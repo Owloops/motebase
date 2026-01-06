@@ -5,11 +5,11 @@ local files = require("motebase.files")
 local multipart = require("motebase.parser.multipart")
 local query = require("motebase.query")
 local expand = require("motebase.query.expand")
+local realtime = require("motebase.realtime")
 
 local collections = {}
 
--- Schema cache: invalidate on create/delete collection
--- NOTE: if adding collection mutations, remember to invalidate
+-- NOTE: invalidate schema_cache when adding collection mutations
 local schema_cache = {}
 
 local function get_file_fields(collection_schema)
@@ -226,7 +226,9 @@ function collections.create_record(name, data, multipart_parts)
         end
     end
 
-    return collections.get_record(name, id)
+    local record = collections.get_record(name, id)
+    if record then realtime.broker.broadcast(name, "create", record) end
+    return record
 end
 
 function collections.update_record(name, id, data, multipart_parts)
@@ -295,12 +297,16 @@ function collections.update_record(name, id, data, multipart_parts)
     local _, err = db.run(sql, values)
     if err then return nil, err end
 
-    return collections.get_record(name, id)
+    local record = collections.get_record(name, id)
+    if record then realtime.broker.broadcast(name, "update", record) end
+    return record
 end
 
 function collections.delete_record(name, id)
     local existing = collections.get_record(name, id)
     if not existing then return nil, "record not found" end
+
+    realtime.broker.broadcast(name, "delete", { id = existing.id })
 
     local changes, err = db.run("DELETE FROM " .. name .. " WHERE id = ?", { id })
     if err then return nil, err end

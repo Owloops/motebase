@@ -4,6 +4,7 @@ local router = require("motebase.router")
 local collections = require("motebase.collections")
 local auth = require("motebase.auth")
 local files = require("motebase.files")
+local realtime = require("motebase.realtime")
 
 local motebase = {}
 
@@ -221,6 +222,62 @@ local function get_token_from_query(query_string)
     return token
 end
 
+local function handle_realtime_connect(ctx)
+    local client = realtime.broker.create_client()
+    if ctx.user then client:set_auth(ctx.user) end
+    server.sse(ctx, client)
+end
+
+local MAX_SUBSCRIPTIONS = 1000
+local MAX_SUBSCRIPTION_LENGTH = 2500
+
+local function handle_realtime_subscribe(ctx)
+    local client_id = ctx.body and ctx.body.clientId
+    local subscriptions = ctx.body and ctx.body.subscriptions
+
+    if not client_id or type(client_id) ~= "string" or #client_id == 0 or #client_id > 255 then
+        server.error(ctx, 400, "clientId must be 1-255 characters")
+        return
+    end
+
+    local client = realtime.broker.get_client(client_id)
+    if not client then
+        server.error(ctx, 404, "client not found")
+        return
+    end
+
+    if subscriptions then
+        if type(subscriptions) ~= "table" then
+            server.error(ctx, 400, "subscriptions must be an array")
+            return
+        end
+        if #subscriptions > MAX_SUBSCRIPTIONS then
+            server.error(ctx, 400, "too many subscriptions (max " .. MAX_SUBSCRIPTIONS .. ")")
+            return
+        end
+        for i = 1, #subscriptions do
+            if type(subscriptions[i]) ~= "string" or #subscriptions[i] > MAX_SUBSCRIPTION_LENGTH then
+                server.error(ctx, 400, "subscription must be string <= " .. MAX_SUBSCRIPTION_LENGTH .. " chars")
+                return
+            end
+        end
+    end
+
+    if ctx.user then
+        local client_auth = client:get_auth()
+        if client_auth and client_auth.sub ~= ctx.user.sub then
+            server.error(ctx, 403, "auth mismatch")
+            return
+        end
+        client:set_auth(ctx.user)
+    end
+
+    client:unsubscribe()
+    if subscriptions then client:subscribe(subscriptions) end
+
+    server.json(ctx, 204, nil)
+end
+
 local function handle_file_download(ctx)
     local collection_name = ctx.params.collection
     local record_id = tonumber(ctx.params.record)
@@ -288,6 +345,9 @@ local function setup_routes()
 
     router.post("/api/files/token", handle_file_token)
     router.get("/api/files/:collection/:record/:filename", handle_file_download)
+
+    router.get("/api/realtime", handle_realtime_connect)
+    router.post("/api/realtime", handle_realtime_subscribe)
 end
 
 -- public api --

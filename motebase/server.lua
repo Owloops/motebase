@@ -150,6 +150,16 @@ local function send_response(wrapper, status, headers, body, keep_alive)
     return send_all(wrapper, response)
 end
 
+local function send_sse_headers(wrapper, status, headers)
+    headers["Connection"] = "keep-alive"
+    local response = "HTTP/1.1 " .. status .. " " .. (status_text[status] or "OK") .. "\r\n"
+    for name, value in pairs(headers) do
+        response = response .. name .. ": " .. value .. "\r\n"
+    end
+    response = response .. "\r\n"
+    return send_all(wrapper, response)
+end
+
 -- request --
 
 local function create_context(method, path, headers, body, config)
@@ -256,6 +266,13 @@ local function handle_request(wrapper, config)
         resp_headers[k] = v
     end
     local status = ctx._status or 200
+
+    if ctx._sse_mode and ctx._sse_client then
+        send_sse_headers(wrapper, status, resp_headers)
+        log.info("http", req.method .. " " .. path .. " " .. status .. " (SSE)")
+        return true, false, nil, ctx._sse_client
+    end
+
     send_response(wrapper, status, resp_headers, ctx._response_body, keep_alive)
     log.info("http", req.method .. " " .. path .. " " .. status)
     return true, keep_alive, nil
@@ -263,12 +280,30 @@ end
 
 local function handle_client(wrapper, config)
     while true do
-        local ok, keep_alive, err = handle_request(wrapper, config)
+        local ok, keep_alive, err, sse_client = handle_request(wrapper, config)
 
         if not ok then return false, err end
+        if sse_client then return true, nil, sse_client end
         if not keep_alive then return true, nil end
 
         wrapper.keep_alive = true
+    end
+end
+
+local function resume_coroutine(c)
+    local ok, result = coroutine.resume(c.coro)
+    if not ok then
+        io.stderr:write("coroutine error: " .. tostring(result) .. "\n")
+        c.wrapper.socket:close()
+        c.waiting = nil
+        return false
+    elseif coroutine.status(c.coro) ~= "dead" then
+        c.waiting = result
+        return true
+    else
+        c.wrapper.socket:close()
+        c.waiting = nil
+        return false
     end
 end
 
@@ -289,6 +324,7 @@ function server.create(config)
     srv:settimeout(0)
 
     local clients = {}
+    local sse_mod = require("motebase.realtime.sse")
 
     local instance = {
         _socket = srv,
@@ -297,6 +333,117 @@ function server.create(config)
         _clients = clients,
     }
 
+    local function handle_new_connection(client_sock)
+        local wrapper = create_client_wrapper(client_sock)
+        local coro = coroutine.create(function()
+            return handle_client(wrapper, config)
+        end)
+
+        local ok, result, _, sse_client = coroutine.resume(coro)
+        if not ok then
+            io.stderr:write("coroutine error: " .. tostring(result) .. "\n")
+            client_sock:close()
+            return
+        end
+
+        if coroutine.status(coro) ~= "dead" then
+            table.insert(clients, { wrapper = wrapper, coro = coro, waiting = result })
+            return
+        end
+
+        if sse_client then
+            local sse_coro = sse_mod.create_handler(wrapper, sse_client, send_all)
+            local sse_ok, sse_result = coroutine.resume(sse_coro)
+            if not sse_ok then
+                io.stderr:write("SSE error: " .. tostring(sse_result) .. "\n")
+                sse_mod.cleanup(sse_client)
+                client_sock:close()
+                return
+            end
+            if coroutine.status(sse_coro) ~= "dead" then
+                table.insert(clients, {
+                    wrapper = wrapper,
+                    coro = sse_coro,
+                    waiting = sse_result,
+                    sse_client = sse_client,
+                })
+                return
+            end
+        end
+
+        client_sock:close()
+    end
+
+    local function process_readable(readable)
+        local socket_to_client = {}
+        for _, c in ipairs(clients) do
+            if c.waiting == "read" then socket_to_client[c.wrapper.socket] = c end
+        end
+
+        for _, sock in ipairs(readable) do
+            if sock == instance._socket then
+                local client_sock = instance._socket:accept()
+                if client_sock then handle_new_connection(client_sock) end
+            else
+                local c = socket_to_client[sock]
+                if c then resume_coroutine(c) end
+            end
+        end
+    end
+
+    local function process_writable(writable)
+        local socket_to_client = {}
+        for _, c in ipairs(clients) do
+            if c.waiting == "write" then socket_to_client[c.wrapper.socket] = c end
+        end
+
+        for _, sock in ipairs(writable) do
+            local c = socket_to_client[sock]
+            if c then resume_coroutine(c) end
+        end
+    end
+
+    local function process_sse_clients()
+        for _, c in ipairs(clients) do
+            if sse_mod.should_resume(c) then
+                if not resume_coroutine(c) and c.sse_client then
+                    sse_mod.cleanup(c.sse_client)
+                else
+                    c.wrapper.last_activity = socket.gettime()
+                end
+            end
+        end
+    end
+
+    local function cleanup_timed_out()
+        local now = socket.gettime()
+        local new_clients = {}
+
+        for _, c in ipairs(clients) do
+            if not c.waiting then goto continue end
+
+            local timeout
+            if c.sse_client then
+                timeout = sse_mod.IDLE_TIMEOUT
+            elseif c.wrapper.request_count > 0 then
+                timeout = config.keep_alive_timeout
+            else
+                timeout = config.timeout
+            end
+
+            if now - c.wrapper.last_activity > timeout then
+                c.wrapper.socket:close()
+                if c.sse_client then sse_mod.cleanup(c.sse_client) end
+            else
+                table.insert(new_clients, c)
+            end
+
+            ::continue::
+        end
+
+        return new_clients
+    end
+
     function instance:run()
         self._running = true
         print(string.format("Server listening on %s:%d (async)", config.host, config.port))
@@ -304,90 +451,23 @@ function server.create(config)
         while self._running do
             local read_sockets = { self._socket }
             local write_sockets = {}
-            local socket_to_client = {}
 
             for _, c in ipairs(clients) do
                 if c.waiting == "read" then
                     table.insert(read_sockets, c.wrapper.socket)
-                    socket_to_client[c.wrapper.socket] = c
                 elseif c.waiting == "write" then
                     table.insert(write_sockets, c.wrapper.socket)
-                    socket_to_client[c.wrapper.socket] = c
                 end
             end
 
             local readable, writable = poll.select(read_sockets, write_sockets, 0.1)
 
-            if readable then
-                for _, sock in ipairs(readable) do
-                    if sock == self._socket then
-                        local client_sock = self._socket:accept()
-                        if client_sock then
-                            local wrapper = create_client_wrapper(client_sock)
-                            local coro = coroutine.create(function()
-                                return handle_client(wrapper, self._config)
-                            end)
-                            local ok, result = coroutine.resume(coro)
-                            if not ok then
-                                io.stderr:write("coroutine error: " .. tostring(result) .. "\n")
-                                client_sock:close()
-                            elseif coroutine.status(coro) ~= "dead" then
-                                table.insert(clients, { wrapper = wrapper, coro = coro, waiting = result })
-                            else
-                                client_sock:close()
-                            end
-                        end
-                    else
-                        local c = socket_to_client[sock]
-                        if c then
-                            local ok, result = coroutine.resume(c.coro)
-                            if not ok then
-                                io.stderr:write("coroutine error: " .. tostring(result) .. "\n")
-                                c.wrapper.socket:close()
-                                c.waiting = nil
-                            elseif coroutine.status(c.coro) ~= "dead" then
-                                c.waiting = result
-                            else
-                                c.wrapper.socket:close()
-                                c.waiting = nil
-                            end
-                        end
-                    end
-                end
-            end
+            if readable then process_readable(readable) end
+            if writable then process_writable(writable) end
 
-            if writable then
-                for _, sock in ipairs(writable) do
-                    local c = socket_to_client[sock]
-                    if c then
-                        local ok, result = coroutine.resume(c.coro)
-                        if not ok then
-                            io.stderr:write("coroutine error: " .. tostring(result) .. "\n")
-                            c.wrapper.socket:close()
-                            c.waiting = nil
-                        elseif coroutine.status(c.coro) ~= "dead" then
-                            c.waiting = result
-                        else
-                            c.wrapper.socket:close()
-                            c.waiting = nil
-                        end
-                    end
-                end
-            end
+            process_sse_clients()
 
-            local now = socket.gettime()
-            local new_clients = {}
-            for _, c in ipairs(clients) do
-                if c.waiting then
-                    local timeout = c.wrapper.request_count > 0 and config.keep_alive_timeout or config.timeout
-                    if now - c.wrapper.last_activity > timeout then
-                        c.wrapper.socket:close()
-                    else
-                        table.insert(new_clients, c)
-                    end
-                end
-            end
-            clients = new_clients
+            clients = cleanup_timed_out()
             self._clients = clients
         end
     end
@@ -437,6 +517,15 @@ function server.download(ctx, status, data, filename, mime_type)
     ctx._response_headers["Content-Type"] = mime_type or "application/octet-stream"
     ctx._response_headers["Content-Disposition"] = 'attachment; filename="' .. (filename or "download") .. '"'
     ctx._response_body = data
+end
+
+function server.sse(ctx, client)
+    ctx._sse_mode = true
+    ctx._sse_client = client
+    ctx._status = 200
+    ctx._response_headers["Content-Type"] = "text/event-stream"
+    ctx._response_headers["Cache-Control"] = "no-store"
+    ctx._response_headers["X-Accel-Buffering"] = "no"
 end
 
 server._should_keep_alive = should_keep_alive
