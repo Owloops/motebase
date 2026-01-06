@@ -9,8 +9,9 @@ local realtime = require("motebase.realtime")
 
 local collections = {}
 
--- NOTE: invalidate schema_cache when adding collection mutations
 local schema_cache = {}
+
+local RULE_FIELDS = { "listRule", "viewRule", "createRule", "updateRule", "deleteRule" }
 
 local function get_file_fields(collection_schema)
     local file_fields = {}
@@ -20,17 +21,44 @@ local function get_file_fields(collection_schema)
     return file_fields
 end
 
+local function has_column(table_name, column_name)
+    local rows = db.query("PRAGMA table_info(" .. table_name .. ")", {})
+    if not rows then return false end
+    for i = 1, #rows do
+        if rows[i].name == column_name then return true end
+    end
+    return false
+end
+
+local function migrate_rules()
+    for i = 1, #RULE_FIELDS do
+        local field = RULE_FIELDS[i]
+        if not has_column("_collections", field) then
+            db.exec("ALTER TABLE _collections ADD COLUMN " .. field .. " TEXT")
+        end
+    end
+end
+
 function collections.init()
-    return db.exec([[
+    local ok, err = db.exec([[
         CREATE TABLE IF NOT EXISTS _collections (
             name TEXT PRIMARY KEY,
             schema TEXT NOT NULL,
+            listRule TEXT,
+            viewRule TEXT,
+            createRule TEXT,
+            updateRule TEXT,
+            deleteRule TEXT,
             created_at INTEGER DEFAULT (strftime('%s', 'now'))
         )
     ]])
+    if not ok then return nil, err end
+
+    migrate_rules()
+    return true
 end
 
-function collections.create(name, fields)
+function collections.create(name, fields, rules)
     if not name:match("^[a-z_][a-z0-9_]*$") then return nil, "invalid collection name" end
 
     if name:sub(1, 1) == "_" then return nil, "collection name cannot start with underscore" end
@@ -51,8 +79,19 @@ function collections.create(name, fields)
     local ok, err = db.exec(create_sql)
     if not ok then return nil, err end
 
-    local _, insert_err =
-        db.insert("INSERT INTO _collections (name, schema) VALUES (?, ?)", { name, cjson.encode(fields) })
+    rules = rules or {}
+    local _, insert_err = db.insert(
+        "INSERT INTO _collections (name, schema, listRule, viewRule, createRule, updateRule, deleteRule) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        {
+            name,
+            cjson.encode(fields),
+            rules.listRule,
+            rules.viewRule,
+            rules.createRule,
+            rules.updateRule,
+            rules.deleteRule,
+        }
+    )
     if insert_err then return nil, insert_err end
 
     schema_cache[name] = nil
@@ -60,18 +99,58 @@ function collections.create(name, fields)
 end
 
 function collections.list()
-    return db.query("SELECT name, schema, created_at FROM _collections ORDER BY name")
+    local rows = db.query(
+        "SELECT name, schema, listRule, viewRule, createRule, updateRule, deleteRule, created_at FROM _collections ORDER BY name"
+    )
+    if not rows then return nil end
+    for i = 1, #rows do
+        rows[i].schema = cjson.decode(rows[i].schema)
+    end
+    return rows
 end
 
 function collections.get(name)
     if schema_cache[name] then return schema_cache[name] end
 
-    local rows = db.query("SELECT name, schema, created_at FROM _collections WHERE name = ?", { name })
+    local rows = db.query(
+        "SELECT name, schema, listRule, viewRule, createRule, updateRule, deleteRule, created_at FROM _collections WHERE name = ?",
+        { name }
+    )
     if not rows or #rows == 0 then return nil end
     local collection = rows[1]
     collection.schema = cjson.decode(collection.schema)
     schema_cache[name] = collection
     return collection
+end
+
+function collections.update(name, updates)
+    local collection = collections.get(name)
+    if not collection then return nil, "collection not found" end
+
+    local sets = {}
+    local values = {}
+
+    for i = 1, #RULE_FIELDS do
+        local field = RULE_FIELDS[i]
+        if updates[field] ~= nil then
+            sets[#sets + 1] = field .. " = ?"
+            if updates[field] == cjson.null then
+                values[#values + 1] = nil
+            else
+                values[#values + 1] = updates[field]
+            end
+        end
+    end
+
+    if #sets == 0 then return collection end
+
+    values[#values + 1] = name
+    local sql = "UPDATE _collections SET " .. table.concat(sets, ", ") .. " WHERE name = ?"
+    local _, err = db.run(sql, values)
+    if err then return nil, err end
+
+    schema_cache[name] = nil
+    return collections.get(name)
 end
 
 function collections.delete(name)
@@ -88,7 +167,7 @@ end
 
 -- records --
 
-function collections.list_records(name, query_string)
+function collections.list_records(name, query_string, rule_opts)
     local collection = collections.get(name)
     if not collection then return nil, "collection not found" end
 
@@ -97,6 +176,11 @@ function collections.list_records(name, query_string)
     if opts.filter_error then return nil, opts.filter_error end
     if opts.sort_error then return nil, opts.sort_error end
     if opts.expand_error then return nil, opts.expand_error end
+
+    if rule_opts then
+        opts.rule_filter_sql = rule_opts.sql
+        opts.rule_filter_params = rule_opts.params
+    end
 
     local built = query.build_sql(name, opts)
 
@@ -227,7 +311,7 @@ function collections.create_record(name, data, multipart_parts)
     end
 
     local record = collections.get_record(name, id)
-    if record then realtime.broker.broadcast(name, "create", record) end
+    if record then realtime.broker.broadcast(name, "create", record, collection) end
     return record
 end
 
@@ -298,15 +382,18 @@ function collections.update_record(name, id, data, multipart_parts)
     if err then return nil, err end
 
     local record = collections.get_record(name, id)
-    if record then realtime.broker.broadcast(name, "update", record) end
+    if record then realtime.broker.broadcast(name, "update", record, collection) end
     return record
 end
 
 function collections.delete_record(name, id)
+    local collection = collections.get(name)
+    if not collection then return nil, "collection not found" end
+
     local existing = collections.get_record(name, id)
     if not existing then return nil, "record not found" end
 
-    realtime.broker.broadcast(name, "delete", { id = existing.id })
+    realtime.broker.broadcast(name, "delete", { id = existing.id }, collection)
 
     local changes, err = db.run("DELETE FROM " .. name .. " WHERE id = ?", { id })
     if err then return nil, err end

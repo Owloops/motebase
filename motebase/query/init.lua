@@ -119,16 +119,29 @@ function query.build_sql(collection_name, opts)
     local select_fields = "*"
     if opts.fields and #opts.fields > 0 then select_fields = table.concat(opts.fields, ", ") end
 
-    local where_clause = ""
+    local where_parts = {}
+
     if opts.filter then
         local where, where_params = filter.to_sql(opts.filter)
         if where then
-            where_clause = " WHERE " .. where
+            where_parts[#where_parts + 1] = where
             for i = 1, #where_params do
                 params[#params + 1] = where_params[i]
             end
         end
     end
+
+    if opts.rule_filter_sql then
+        where_parts[#where_parts + 1] = opts.rule_filter_sql
+        if opts.rule_filter_params then
+            for i = 1, #opts.rule_filter_params do
+                params[#params + 1] = opts.rule_filter_params[i]
+            end
+        end
+    end
+
+    local where_clause = ""
+    if #where_parts > 0 then where_clause = " WHERE " .. table.concat(where_parts, " AND ") end
 
     local order_clause
     if opts.sort and #opts.sort > 0 then
@@ -152,13 +165,17 @@ function query.build_sql(collection_name, opts)
     params[#params + 1] = offset
 
     local count_sql = nil
-    if not opts.skip_total then count_sql = "SELECT COUNT(*) as count FROM " .. collection_name .. where_clause end
+    local count_params = {}
+    if not opts.skip_total then
+        count_sql = "SELECT COUNT(*) as count FROM " .. collection_name .. where_clause
+        if #params > 2 then count_params = { table.unpack(params, 1, #params - 2) } end
+    end
 
     return {
         sql = sql,
         count_sql = count_sql,
         params = params,
-        count_params = opts.filter and { table.unpack(params, 1, #params - 2) } or {},
+        count_params = count_params,
     }
 end
 

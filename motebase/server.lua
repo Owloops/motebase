@@ -4,6 +4,7 @@ local router = require("motebase.router")
 local middleware = require("motebase.middleware")
 local log = require("motebase.utils.log")
 local http_parser = require("motebase.parser.http")
+local ratelimit = require("motebase.ratelimit")
 
 local server = {}
 
@@ -13,7 +14,9 @@ local status_text = {
     [204] = "No Content",
     [400] = "Bad Request",
     [401] = "Unauthorized",
+    [403] = "Forbidden",
     [404] = "Not Found",
+    [429] = "Too Many Requests",
     [500] = "Internal Server Error",
 }
 
@@ -24,6 +27,7 @@ local DEFAULT_KEEP_ALIVE_MAX = 100
 
 local function create_client_wrapper(client)
     client:settimeout(0)
+    local ip, _ = client:getpeername()
     return {
         socket = client,
         read_buffer = "",
@@ -31,6 +35,7 @@ local function create_client_wrapper(client)
         last_activity = socket.gettime(),
         request_count = 0,
         keep_alive = true,
+        ip = ip or "unknown",
     }
 end
 
@@ -218,6 +223,15 @@ local function handle_request(wrapper, config)
         cors["Content-Length"] = "0"
         send_response(wrapper, 204, cors, nil, keep_alive)
         log.info("http", req.method .. " " .. path .. " 204")
+        return true, keep_alive, nil
+    end
+
+    if config.ratelimit ~= false and not ratelimit.check(wrapper.ip, path) then
+        local cors = middleware.cors_headers()
+        cors["Content-Type"] = "application/json"
+        cors["Retry-After"] = "60"
+        send_response(wrapper, 429, cors, middleware.encode_json({ error = "too many requests" }), keep_alive)
+        log.info("http", req.method .. " " .. path .. " 429")
         return true, keep_alive, nil
     end
 

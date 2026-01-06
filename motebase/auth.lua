@@ -6,6 +6,10 @@ local email_parser = require("motebase.parser.email")
 
 local auth = {}
 
+local superuser_email = nil
+
+-- helpers --
+
 local function generate_salt()
     return crypto.to_hex(crypto.random_bytes(16))
 end
@@ -88,6 +92,27 @@ function auth.get_user(user_id)
     local users = db.query("SELECT id, email, created_at FROM _users WHERE id = ?", { user_id })
     if not users or #users == 0 then return nil end
     return users[1]
+end
+
+-- superuser --
+
+function auth.configure(opts)
+    if opts and opts.superuser then superuser_email = opts.superuser end
+end
+
+function auth.is_superuser(user)
+    if not user then return false end
+
+    local email = user.email
+    if not email and user.sub then
+        local u = auth.get_user(user.sub)
+        email = u and u.email
+    end
+
+    if superuser_email then return email == superuser_email end
+
+    local id = user.id or user.sub
+    return id == 1
 end
 
 return auth

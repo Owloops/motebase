@@ -1,4 +1,6 @@
 local client_mod = require("motebase.realtime.client")
+local rules = require("motebase.rules")
+local auth = require("motebase.auth")
 
 local broker = {
     clients = {},
@@ -36,7 +38,45 @@ function broker.all_clients()
     return result
 end
 
-function broker.broadcast(collection, action, record)
+local function build_client_context(cl, record)
+    local client_auth = cl:get_auth()
+    local auth_ctx = { id = "" }
+
+    if client_auth and client_auth.sub then
+        local user = auth.get_user(client_auth.sub)
+        if user then auth_ctx = {
+            id = tostring(user.id),
+            email = user.email,
+        } end
+    end
+
+    return {
+        auth = auth_ctx,
+        body = {},
+        record = record,
+    }
+end
+
+local function check_view_rule(collection, cl, record)
+    if not collection then return true end
+
+    local view_rule = collection.viewRule
+
+    if view_rule == nil then
+        local client_auth = cl:get_auth()
+        return client_auth and auth.is_superuser(client_auth)
+    end
+
+    if view_rule == "" then return true end
+
+    local ast = rules.parse(view_rule)
+    if not ast then return false end
+
+    local ctx = build_client_context(cl, record)
+    return rules.check(ast, ctx)
+end
+
+function broker.broadcast(collection_name, action, record, collection)
     if broker.client_count == 0 then return end
 
     local record_id = record and record.id
@@ -47,12 +87,15 @@ function broker.broadcast(collection, action, record)
 
     for _, cl in pairs(broker.clients) do
         if not cl:is_discarded() then
-            local topic = cl:matches_topic(collection, record_id)
+            local topic = cl:matches_topic(collection_name, record_id)
             if topic then
-                cl:queue_message({
-                    name = topic,
-                    data = message_data,
-                })
+                local can_view = check_view_rule(collection, cl, record)
+                if can_view then
+                    cl:queue_message({
+                        name = topic,
+                        data = message_data,
+                    })
+                end
             end
         end
     end

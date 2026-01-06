@@ -79,6 +79,22 @@ Subscribe to collection changes via Server-Sent Events. Live create/update/delet
 
 </td>
 </tr>
+<tr>
+<td width="50%">
+
+**API Rules**
+
+PocketBase-compatible access control. List, view, create, update, delete rules per collection.
+
+</td>
+<td width="50%">
+
+**Rate Limiting**
+
+Token bucket algorithm. Per-endpoint limits. Protects auth endpoints from brute force.
+
+</td>
+</tr>
 </table>
 
 ## Comparison
@@ -151,6 +167,8 @@ luajit ./bin/motebase.lua
 | `-d, --db` | Database file path | `motebase.db` |
 | `-s, --secret` | JWT secret key | `change-me-in-production` |
 | `--storage` | File storage directory | `./storage` |
+| `--superuser` | Superuser email address | First registered user |
+| `--ratelimit` | Requests per minute (0 to disable) | `100` |
 | `--help` | Show help message | |
 
 ### Environment Variables
@@ -160,6 +178,8 @@ luajit ./bin/motebase.lua
 | `MOTEBASE_SECRET` | JWT secret key |
 | `MOTEBASE_DB` | Database file path |
 | `MOTEBASE_STORAGE` | File storage directory |
+| `MOTEBASE_SUPERUSER` | Superuser email address |
+| `MOTEBASE_RATELIMIT` | Requests per minute (0 to disable) |
 | `MOTEBASE_LOG` | Enable logging (`0` to disable) |
 
 ## API
@@ -241,6 +261,8 @@ curl "http://localhost:8080/api/collections/posts/records?skipTotal=true"
 | `<=` | Less or equal | `views<=100` |
 | `~` | Like/Contains | `title~'hello'` |
 | `!~` | Not like | `title!~'spam'` |
+| `?=` | Any equal (arrays) | `tags?='lua'` |
+| `?!=`, `?>`, etc. | Any-of variants | `scores?>50` |
 | `&&` | AND | `a='x' && b='y'` |
 | `\|\|` | OR | `a='x' \|\| a='y'` |
 | `()` | Grouping | `(a='x' \|\| a='y') && b='z'` |
@@ -446,6 +468,86 @@ data:{"action":"create","record":{"id":1,"title":"Hello",...}}
 |---------|-------------|---------|
 | `collection/*` | All records in collection | `posts/*` |
 | `collection/id` | Specific record | `posts/123` |
+
+### API Rules
+
+Control access to collections with PocketBase-compatible rules:
+
+```bash
+# Create collection with rules
+curl -X POST http://localhost:8080/api/collections \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "posts",
+    "schema": {"title": {"type": "string"}, "author": {"type": "relation", "collection": "users"}},
+    "listRule": "",
+    "viewRule": "",
+    "createRule": "@request.auth.id != \"\"",
+    "updateRule": "author = @request.auth.id",
+    "deleteRule": null
+  }'
+
+# Update rules on existing collection
+curl -X PATCH http://localhost:8080/api/collections/posts \
+  -H "Content-Type: application/json" \
+  -d '{"listRule": "status = \"published\""}'
+```
+
+#### Rule Values
+
+| Value | Meaning |
+|-------|---------|
+| `null` | Superuser only (locked) |
+| `""` | Anyone (public access) |
+| `"expression"` | Users matching the filter |
+
+#### Rule Syntax
+
+```bash
+# Authenticated users only
+@request.auth.id != ""
+
+# Owner only
+author = @request.auth.id
+
+# Role-based
+@request.auth.role = "admin" || @request.auth.role = "editor"
+
+# Record field + auth combined
+status = "published" || author = @request.auth.id
+
+# Time-based
+expiry > @now
+
+# Prevent field changes
+@request.body.role:isset = false
+
+# Check if field was modified
+@request.body.status:changed = false
+```
+
+#### Supported Identifiers
+
+| Identifier | Description |
+|------------|-------------|
+| `@request.auth.*` | Current user fields |
+| `@request.body.*` | Submitted data |
+| `@request.query.*` | Query parameters |
+| `@request.headers.*` | Request headers |
+| `@request.method` | HTTP method |
+| `@request.context` | Request context |
+| `@now`, `@yesterday`, `@tomorrow` | Datetime macros |
+| `@todayStart`, `@todayEnd`, etc. | Date boundaries |
+
+#### Modifiers
+
+| Modifier | Description | Example |
+|----------|-------------|---------|
+| `:isset` | Check if field was submitted | `@request.body.role:isset = false` |
+| `:changed` | Check if field was modified | `@request.body.status:changed = false` |
+| `:length` | Array/string length | `tags:length > 0` |
+| `:each` | All items match | `tags:each ~ "valid"` |
+| `:lower` | Case-insensitive | `title:lower = "test"` |
 
 ## Deployment
 
