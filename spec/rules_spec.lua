@@ -53,14 +53,14 @@ describe("rules", function()
         end)
 
         it("parses grouped conditions", function()
-            local ast = rules.parse('(a = 1 || b = 2) && c = 3')
+            local ast = rules.parse("(a = 1 || b = 2) && c = 3")
             assert.is_truthy(ast)
             assert.are.equal("binary", ast.type)
             assert.are.equal("AND", ast.op)
         end)
 
         it("parses any-of operator ?=", function()
-            local ast = rules.parse('tags ?= @request.auth.id')
+            local ast = rules.parse("tags ?= @request.auth.id")
             assert.is_truthy(ast)
             assert.are.equal("?=", ast.op)
         end)
@@ -130,10 +130,22 @@ describe("rules", function()
 
         it("parses all datetime macros", function()
             local macros = {
-                "@now", "@second", "@minute", "@hour", "@weekday",
-                "@day", "@month", "@year", "@yesterday", "@tomorrow",
-                "@todayStart", "@todayEnd", "@monthStart", "@monthEnd",
-                "@yearStart", "@yearEnd",
+                "@now",
+                "@second",
+                "@minute",
+                "@hour",
+                "@weekday",
+                "@day",
+                "@month",
+                "@year",
+                "@yesterday",
+                "@tomorrow",
+                "@todayStart",
+                "@todayEnd",
+                "@monthStart",
+                "@monthEnd",
+                "@yearStart",
+                "@yearEnd",
             }
             for _, macro in ipairs(macros) do
                 local ast = rules.parse("expiry > " .. macro)
@@ -198,7 +210,7 @@ describe("rules", function()
         end)
 
         it("evaluates owner check", function()
-            local ast = rules.parse('owner = @request.auth.id')
+            local ast = rules.parse("owner = @request.auth.id")
 
             local ctx_owner = { auth = { id = "123" }, record = { owner = "123" } }
             assert.is_true(rules.check(ast, ctx_owner))
@@ -234,7 +246,7 @@ describe("rules", function()
         end)
 
         it("evaluates @now macro", function()
-            local ast = rules.parse('expiry > @now')
+            local ast = rules.parse("expiry > @now")
 
             local ctx_future = { record = { expiry = "2099-01-01 00:00:00" } }
             assert.is_true(rules.check(ast, ctx_future))
@@ -453,7 +465,7 @@ describe("collection rules", function()
             listRule = "",
             viewRule = "",
             createRule = '@request.auth.id != ""',
-            updateRule = 'owner = @request.auth.id',
+            updateRule = "owner = @request.auth.id",
             deleteRule = nil,
         }
 
@@ -464,7 +476,7 @@ describe("collection rules", function()
         assert.are.equal("", col.listRule)
         assert.are.equal("", col.viewRule)
         assert.are.equal('@request.auth.id != ""', col.createRule)
-        assert.are.equal('owner = @request.auth.id', col.updateRule)
+        assert.are.equal("owner = @request.auth.id", col.updateRule)
         assert.is_nil(col.deleteRule)
     end)
 
@@ -497,13 +509,13 @@ describe("ratelimit", function()
     end)
 
     it("allows requests within limit", function()
-        for i = 1, 3 do
+        for _ = 1, 3 do
             assert.is_true(ratelimit.check("127.0.0.1", "/api/auth/login"))
         end
     end)
 
     it("blocks requests over limit", function()
-        for i = 1, 3 do
+        for _ = 1, 3 do
             ratelimit.check("127.0.0.1", "/api/auth/login")
         end
 
@@ -511,7 +523,7 @@ describe("ratelimit", function()
     end)
 
     it("uses default config for unknown paths", function()
-        for i = 1, 5 do
+        for _ = 1, 5 do
             assert.is_true(ratelimit.check("127.0.0.1", "/api/some/path"))
         end
 
@@ -519,7 +531,7 @@ describe("ratelimit", function()
     end)
 
     it("separates buckets by IP", function()
-        for i = 1, 3 do
+        for _ = 1, 3 do
             ratelimit.check("127.0.0.1", "/api/auth/login")
         end
 
@@ -528,7 +540,7 @@ describe("ratelimit", function()
     end)
 
     it("separates buckets by path", function()
-        for i = 1, 3 do
+        for _ = 1, 3 do
             ratelimit.check("127.0.0.1", "/api/auth/login")
         end
 
