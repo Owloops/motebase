@@ -127,6 +127,26 @@ luajit ./bin/motebase.lua
 | `MOTEBASE_MAX_CONNECTIONS` | Max concurrent connections |
 | `MOTEBASE_LOG` | Enable logging (`0` to disable) |
 
+#### SMTP (Email)
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MOTEBASE_SMTP_HOST` | SMTP server hostname | |
+| `MOTEBASE_SMTP_PORT` | SMTP server port (TLS) | `465` |
+| `MOTEBASE_SMTP_USER` | SMTP username | |
+| `MOTEBASE_SMTP_PASS` | SMTP password | |
+| `MOTEBASE_SMTP_FROM` | From email address | |
+
+#### OAuth
+
+| Variable | Description |
+|----------|-------------|
+| `MOTEBASE_OAUTH_GOOGLE_ID` | Google OAuth client ID |
+| `MOTEBASE_OAUTH_GOOGLE_SECRET` | Google OAuth client secret |
+| `MOTEBASE_OAUTH_GITHUB_ID` | GitHub OAuth client ID |
+| `MOTEBASE_OAUTH_GITHUB_SECRET` | GitHub OAuth client secret |
+| `MOTEBASE_OAUTH_REDIRECT_URL` | OAuth callback base URL (e.g., `https://api.example.com`) |
+
 ## API
 
 ### Collections
@@ -334,6 +354,63 @@ curl -X POST http://localhost:8080/api/auth/login \
 curl http://localhost:8080/api/auth/me \
   -H "Authorization: Bearer <token>"
 ```
+
+#### Password Reset
+
+Requires SMTP configuration.
+
+```bash
+# Request password reset (sends email)
+curl -X POST http://localhost:8080/api/auth/request-password-reset \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","app_url":"https://myapp.com"}'
+
+# Confirm password reset (with token from email)
+curl -X POST http://localhost:8080/api/auth/confirm-password-reset \
+  -H "Content-Type: application/json" \
+  -d '{"token":"<reset_token>","password":"newpassword123"}'
+```
+
+#### Email Verification
+
+Requires SMTP configuration and authentication.
+
+```bash
+# Request verification email (requires auth)
+curl -X POST http://localhost:8080/api/auth/request-verification \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
+  -d '{"app_url":"https://myapp.com"}'
+
+# Confirm verification (with token from email)
+curl -X POST http://localhost:8080/api/auth/confirm-verification \
+  -H "Content-Type: application/json" \
+  -d '{"token":"<verification_token>"}'
+```
+
+#### OAuth
+
+Requires OAuth environment variables for the provider.
+
+```bash
+# List available providers
+curl http://localhost:8080/api/auth/oauth/providers
+# Returns: {"providers":["google","github"]}
+
+# Start OAuth flow (redirect user to this URL)
+curl http://localhost:8080/api/auth/oauth/google
+# Returns: {"url":"https://accounts.google.com/o/oauth2/v2/auth?..."}
+
+# OAuth callback (handled automatically, returns JWT)
+# GET /api/auth/oauth/google/callback?code=...&state=...
+```
+
+**Supported Providers:**
+
+| Provider | Scopes |
+|----------|--------|
+| Google | `openid`, `email`, `profile` |
+| GitHub | `user:email` |
 
 ### Schema Types
 
