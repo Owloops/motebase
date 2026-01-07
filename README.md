@@ -715,12 +715,12 @@ local inspect = require("inspect")
 Hooks have full access to HTTP clients for calling external APIs:
 
 ```lua
-local https = require("ssl.https")
+local http = require("socket.http")
 local ltn12 = require("ltn12")
 
 router.get("/api/external", function(ctx)
     local response = {}
-    https.request({
+    http.request({
         url = "https://api.example.com/data",
         sink = ltn12.sink.table(response),
     })
@@ -728,7 +728,7 @@ router.get("/api/external", function(ctx)
 end)
 ```
 
-**Bundled libraries:** `socket.http`, `ssl.https`, `ltn12`, `cjson`, `lpeg`, `lfs`
+**Bundled libraries:** `socket.http`, `ltn12`, `cjson`, `lpeg`, `lfs`
 
 ## Development
 
