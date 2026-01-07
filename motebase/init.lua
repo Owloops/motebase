@@ -7,6 +7,8 @@ local files = require("motebase.files")
 local realtime = require("motebase.realtime")
 local rules = require("motebase.rules")
 local ratelimit = require("motebase.ratelimit")
+local oauth = require("motebase.oauth")
+local jwt = require("motebase.jwt")
 local cjson = require("cjson")
 
 local motebase = {}
@@ -109,6 +111,11 @@ local function handle_health(ctx)
 end
 
 local function handle_create_collection(ctx)
+    if not ctx.user or not auth.is_superuser(ctx.user) then
+        server.error(ctx, 403, "superuser required")
+        return
+    end
+
     local name = ctx.body.name
     local col_schema = ctx.body.schema
 
@@ -141,6 +148,11 @@ local function handle_create_collection(ctx)
 end
 
 local function handle_update_collection(ctx)
+    if not ctx.user or not auth.is_superuser(ctx.user) then
+        server.error(ctx, 403, "superuser required")
+        return
+    end
+
     local name = ctx.params.name
 
     local updates = {
@@ -166,6 +178,11 @@ local function handle_list_collections(ctx)
 end
 
 local function handle_delete_collection(ctx)
+    if not ctx.user or not auth.is_superuser(ctx.user) then
+        server.error(ctx, 403, "superuser required")
+        return
+    end
+
     local name = ctx.params.name
     local ok, err = collections.delete(name)
     if not ok then
@@ -395,6 +412,105 @@ local function handle_me(ctx)
     server.json(ctx, 200, user)
 end
 
+local function handle_request_password_reset(ctx)
+    local app_url = ctx.body.app_url or ctx.config.app_url
+    auth.request_password_reset(ctx.body.email, app_url)
+    server.json(ctx, 204, nil)
+end
+
+local function handle_confirm_password_reset(ctx)
+    local ok, err = auth.confirm_password_reset(ctx.body.token, ctx.body.password)
+    if not ok then
+        server.error(ctx, 400, err)
+        return
+    end
+    server.json(ctx, 204, nil)
+end
+
+local function handle_request_verification(ctx)
+    if not ctx.user then
+        server.error(ctx, 401, ctx.auth_error or "unauthorized")
+        return
+    end
+
+    local app_url = ctx.body.app_url or ctx.config.app_url
+    local ok, err = auth.request_verification(ctx.user.sub, app_url)
+    if not ok then
+        server.error(ctx, 400, err)
+        return
+    end
+    server.json(ctx, 204, nil)
+end
+
+local function handle_confirm_verification(ctx)
+    local ok, err = auth.confirm_verification(ctx.body.token)
+    if not ok then
+        server.error(ctx, 400, err)
+        return
+    end
+    server.json(ctx, 204, nil)
+end
+
+local function handle_oauth_providers(ctx)
+    server.json(ctx, 200, { providers = oauth.list_providers() })
+end
+
+local function handle_oauth_redirect(ctx)
+    local provider = ctx.params.provider
+    if not oauth.is_enabled(provider) then
+        server.error(ctx, 400, "provider not configured")
+        return
+    end
+
+    local auth_url, err = oauth.get_auth_url(provider)
+    if not auth_url then
+        server.error(ctx, 500, err)
+        return
+    end
+
+    server.redirect(ctx, auth_url)
+end
+
+local function handle_oauth_callback(ctx)
+    local provider = ctx.params.provider
+    local query = parse_query_string(ctx.query_string)
+    local code = query.code
+    local state = query.state
+
+    if not code then
+        server.error(ctx, 400, "missing code parameter")
+        return
+    end
+
+    local access_token, err = oauth.exchange_code(provider, code, state)
+    if not access_token then
+        server.error(ctx, 400, err)
+        return
+    end
+
+    local user_info, info_err = oauth.get_user_info(provider, access_token)
+    if not user_info then
+        server.error(ctx, 400, info_err)
+        return
+    end
+
+    local user, user_err = auth.find_or_create_oauth_user(user_info.email, provider, user_info.provider_id)
+    if not user then
+        server.error(ctx, 500, user_err)
+        return
+    end
+
+    local token = jwt.create_token(user.id, ctx.config.secret, { expires_in = ctx.config.token_expires_in })
+
+    server.json(ctx, 200, {
+        token = token,
+        user = {
+            id = user.id,
+            email = user.email,
+        },
+    })
+end
+
 local function handle_file_token(ctx)
     if not ctx.user then
         server.error(ctx, 401, ctx.auth_error or "unauthorized")
@@ -554,6 +670,13 @@ local function setup_routes()
     router.post("/api/auth/register", handle_register)
     router.post("/api/auth/login", handle_login)
     router.get("/api/auth/me", handle_me)
+    router.post("/api/auth/request-password-reset", handle_request_password_reset)
+    router.post("/api/auth/confirm-password-reset", handle_confirm_password_reset)
+    router.post("/api/auth/request-verification", handle_request_verification)
+    router.post("/api/auth/confirm-verification", handle_confirm_verification)
+    router.get("/api/auth/oauth/providers", handle_oauth_providers)
+    router.get("/api/auth/oauth/:provider", handle_oauth_redirect)
+    router.get("/api/auth/oauth/:provider/callback", handle_oauth_callback)
 
     router.post("/api/files/token", handle_file_token)
     router.get("/api/files/:collection/:record/:filename", handle_file_download)

@@ -16,6 +16,8 @@ description = {
 dependencies = {
     "lua >= 5.1, < 5.5",
     "luasocket >= 3.0",
+    "mime",
+    "luasec >= 1.0",
     "lsqlite3complete >= 0.9",
     "lua-cjson >= 2.1",
     "luafilesystem >= 1.8",
@@ -77,6 +79,8 @@ build = {
         ["motebase.realtime.broker"] = "motebase/realtime/broker.lua",
         ["motebase.realtime.client"] = "motebase/realtime/client.lua",
         ["motebase.realtime.sse"] = "motebase/realtime/sse.lua",
+        ["motebase.mail"] = "motebase/mail.lua",
+        ["motebase.oauth"] = "motebase/oauth.lua",
     },
     install = {
         bin = {

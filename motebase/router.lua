@@ -1,14 +1,44 @@
+local lpeg = require("lpeg")
+
 local router = {}
 
 local routes = {}
 
+local P, C, Ct = lpeg.P, lpeg.C, lpeg.Ct
+
 local function compile_pattern(path)
-    local pattern = "^" .. path:gsub(":([%w_]+)", "([^/]+)") .. "$"
     local params = {}
     for param in path:gmatch(":([%w_]+)") do
         params[#params + 1] = param
     end
-    return pattern, params
+
+    local segments = {}
+    local pos = 1
+    while pos <= #path do
+        local param_start, param_end, param_name = path:find(":([%w_]+)", pos)
+        if param_start then
+            if param_start > pos then
+                segments[#segments + 1] = { type = "literal", value = path:sub(pos, param_start - 1) }
+            end
+            segments[#segments + 1] = { type = "param", name = param_name }
+            pos = param_end + 1
+        else
+            segments[#segments + 1] = { type = "literal", value = path:sub(pos) }
+            break
+        end
+    end
+
+    local pattern = P(true)
+    for _, seg in ipairs(segments) do
+        if seg.type == "literal" then
+            pattern = pattern * P(seg.value)
+        else
+            pattern = pattern * C((1 - P("/")) ^ 1)
+        end
+    end
+    pattern = pattern * -1
+
+    return Ct(pattern), params
 end
 
 function router.add(method, path, handler)
@@ -40,11 +70,11 @@ end
 function router.match(method, path)
     for _, route in ipairs(routes) do
         if route.method == method then
-            local matches = { path:match(route.pattern) }
-            if #matches > 0 or path:match(route.pattern) then
+            local captures = route.pattern:match(path)
+            if captures then
                 local params = {}
                 for i, name in ipairs(route.param_names) do
-                    params[name] = matches[i]
+                    params[name] = captures[i]
                 end
                 return route.handler, params
             end

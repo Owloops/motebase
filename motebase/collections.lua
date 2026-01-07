@@ -21,26 +21,8 @@ local function get_file_fields(collection_schema)
     return file_fields
 end
 
-local function has_column(table_name, column_name)
-    local rows = db.query("PRAGMA table_info(" .. table_name .. ")", {})
-    if not rows then return false end
-    for i = 1, #rows do
-        if rows[i].name == column_name then return true end
-    end
-    return false
-end
-
-local function migrate_rules()
-    for i = 1, #RULE_FIELDS do
-        local field = RULE_FIELDS[i]
-        if not has_column("_collections", field) then
-            db.exec("ALTER TABLE _collections ADD COLUMN " .. field .. " TEXT")
-        end
-    end
-end
-
 function collections.init()
-    local ok, err = db.exec([[
+    return db.exec([[
         CREATE TABLE IF NOT EXISTS _collections (
             name TEXT PRIMARY KEY,
             schema TEXT NOT NULL,
@@ -52,10 +34,6 @@ function collections.init()
             created_at INTEGER DEFAULT (strftime('%s', 'now'))
         )
     ]])
-    if not ok then return nil, err end
-
-    migrate_rules()
-    return true
 end
 
 function collections.create(name, fields, rules)

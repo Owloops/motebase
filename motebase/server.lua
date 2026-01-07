@@ -542,6 +542,12 @@ function server.sse(ctx, client)
     ctx._response_headers["X-Accel-Buffering"] = "no"
 end
 
+function server.redirect(ctx, url)
+    ctx._status = 302
+    ctx._response_headers["Location"] = url
+    ctx._response_body = ""
+end
+
 server._should_keep_alive = should_keep_alive
 server._DEFAULT_KEEP_ALIVE_MAX = DEFAULT_KEEP_ALIVE_MAX
 
