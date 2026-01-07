@@ -126,7 +126,7 @@ function oauth.get_auth_url(provider_name)
 
     local params = {
         client_id = p.client_id,
-        redirect_uri = redirect_url .. "/" .. provider_name .. "/callback",
+        redirect_uri = redirect_url .. "/api/auth/oauth/" .. provider_name .. "/callback",
         response_type = "code",
         scope = p.scopes,
         state = state,
@@ -152,7 +152,7 @@ function oauth.exchange_code(provider_name, code, state)
         client_id = p.client_id,
         client_secret = p.client_secret,
         code = code,
-        redirect_uri = redirect_url .. "/" .. provider_name .. "/callback",
+        redirect_uri = redirect_url .. "/api/auth/oauth/" .. provider_name .. "/callback",
         grant_type = "authorization_code",
     })
 
