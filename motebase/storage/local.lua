@@ -2,8 +2,6 @@ local lfs = require("lfs")
 
 local local_storage = {}
 
--- helpers --
-
 local function mkdir_recursive(path)
     local attr = lfs.attributes(path)
     if attr and attr.mode == "directory" then return true end
@@ -40,8 +38,6 @@ local function rmdir_recursive(path)
         return os.remove(path)
     end
 end
-
--- backend --
 
 function local_storage.create(config)
     local base_path = config.storage_path or "./storage"

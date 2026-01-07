@@ -1,6 +1,9 @@
 local filter = require("motebase.query.filter")
 local sort = require("motebase.query.sort")
 local expand = require("motebase.query.expand")
+local url_util = require("motebase.utils.url")
+
+local unpack = table.unpack or unpack
 
 local query = {}
 
@@ -13,8 +16,6 @@ local SYSTEM_FIELDS = {
     created_at = true,
     updated_at = true,
 }
-
--- helpers --
 
 local function parse_int(str, default)
     if not str then return default end
@@ -43,29 +44,8 @@ local function validate_fields(fields, schema)
     return #valid > 0 and valid or nil
 end
 
-local function parse_query_string(qs)
-    if not qs or qs == "" then return {} end
-    local params = {}
-    for pair in qs:gmatch("[^&]+") do
-        local key, value = pair:match("([^=]+)=?(.*)")
-        if key then
-            key = key:gsub("%%(%x%x)", function(h)
-                return string.char(tonumber(h, 16))
-            end)
-            value = value:gsub("%%(%x%x)", function(h)
-                return string.char(tonumber(h, 16))
-            end)
-            value = value:gsub("+", " ")
-            params[key] = value
-        end
-    end
-    return params
-end
-
--- public --
-
 function query.parse(query_string, schema)
-    local params = parse_query_string(query_string)
+    local params = url_util.parse_query(query_string)
 
     local page = parse_int(params.page, DEFAULT_PAGE)
     if page < 1 then page = 1 end
@@ -168,7 +148,7 @@ function query.build_sql(collection_name, opts)
     local count_params = {}
     if not opts.skip_total then
         count_sql = "SELECT COUNT(*) as count FROM " .. collection_name .. where_clause
-        if #params > 2 then count_params = { table.unpack(params, 1, #params - 2) } end
+        if #params > 2 then count_params = { unpack(params, 1, #params - 2) } end
     end
 
     return {

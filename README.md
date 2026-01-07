@@ -112,6 +112,7 @@ luajit ./bin/motebase.lua
 | `--storage` | File storage directory | `./storage` |
 | `--superuser` | Superuser email address | First registered user |
 | `--ratelimit` | Requests per minute (0 to disable) | `100` |
+| `--max-connections` | Max concurrent connections | `10000` |
 | `--help` | Show help message | |
 
 ### Environment Variables
@@ -123,6 +124,7 @@ luajit ./bin/motebase.lua
 | `MOTEBASE_STORAGE` | File storage directory |
 | `MOTEBASE_SUPERUSER` | Superuser email address |
 | `MOTEBASE_RATELIMIT` | Requests per minute (0 to disable) |
+| `MOTEBASE_MAX_CONNECTIONS` | Max concurrent connections |
 | `MOTEBASE_LOG` | Enable logging (`0` to disable) |
 
 ## API

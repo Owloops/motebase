@@ -103,7 +103,8 @@ describe("auth", function()
             local ok = auth.request_password_reset("test@example.com")
             assert.is_true(ok)
 
-            local users = db.query("SELECT reset_token, reset_token_expiry FROM _users WHERE email = ?", { "test@example.com" })
+            local users =
+                db.query("SELECT reset_token, reset_token_expiry FROM _users WHERE email = ?", { "test@example.com" })
             assert.is_truthy(users[1].reset_token)
             assert.is_truthy(users[1].reset_token_expiry)
         end)

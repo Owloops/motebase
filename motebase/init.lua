@@ -9,6 +9,7 @@ local rules = require("motebase.rules")
 local ratelimit = require("motebase.ratelimit")
 local oauth = require("motebase.oauth")
 local jwt = require("motebase.jwt")
+local url_util = require("motebase.utils.url")
 local cjson = require("cjson")
 
 local motebase = {}
@@ -19,25 +20,6 @@ local function normalize_null(value)
 end
 
 -- rules --
-
-local function parse_query_string(query_string)
-    if not query_string or query_string == "" then return {} end
-
-    local params = {}
-    for pair in query_string:gmatch("[^&]+") do
-        local key, value = pair:match("([^=]+)=?(.*)")
-        if key then
-            key = key:gsub("%%(%x%x)", function(hex)
-                return string.char(tonumber(hex, 16))
-            end)
-            value = value:gsub("%%(%x%x)", function(hex)
-                return string.char(tonumber(hex, 16))
-            end)
-            params[key] = value
-        end
-    end
-    return params
-end
 
 local function build_rule_context(ctx, record, body)
     local auth_ctx = nil
@@ -53,7 +35,7 @@ local function build_rule_context(ctx, record, body)
         auth = auth_ctx or { id = "" },
         body = body or {},
         record = record,
-        query = parse_query_string(ctx.query_string),
+        query = url_util.parse_query(ctx.query_string),
         headers = ctx.headers or {},
         method = ctx.method or "GET",
         context = ctx.context or "default",
@@ -473,7 +455,7 @@ end
 
 local function handle_oauth_callback(ctx)
     local provider = ctx.params.provider
-    local query = parse_query_string(ctx.query_string)
+    local query = url_util.parse_query(ctx.query_string)
     local code = query.code
     local state = query.state
 
@@ -716,6 +698,8 @@ function motebase.start(config)
 
     local ratelimit_val = config.ratelimit or tonumber(os.getenv("MOTEBASE_RATELIMIT"))
     if ratelimit_val then ratelimit.set_global_limit(ratelimit_val) end
+
+    config.max_concurrent = config.max_concurrent or tonumber(os.getenv("MOTEBASE_MAX_CONNECTIONS"))
 
     setup_routes()
 

@@ -31,6 +31,9 @@ local function parse_args(args)
         elseif a == "--ratelimit" then
             config.ratelimit = tonumber(args[i + 1])
             i = i + 2
+        elseif a == "--max-connections" then
+            config.max_concurrent = tonumber(args[i + 1])
+            i = i + 2
         elseif a == "--help" then
             return nil, "help"
         else
@@ -52,6 +55,7 @@ local function print_help()
     print("  --max-file-size <bytes> Max upload size in bytes (default: 10485760)")
     print("  --superuser <email>     Superuser email (bypasses API rules)")
     print("  --ratelimit <n>         Requests per minute (0 to disable, default: 100)")
+    print("  --max-connections <n>   Max concurrent connections (default: 10000)")
     print("  --help                  Show this help message")
     print("")
     print("Environment variables:")
@@ -61,6 +65,7 @@ local function print_help()
     print("  MOTEBASE_MAX_FILE_SIZE  Max upload size in bytes")
     print("  MOTEBASE_SUPERUSER      Superuser email")
     print("  MOTEBASE_RATELIMIT      Requests per minute (0 to disable)")
+    print("  MOTEBASE_MAX_CONNECTIONS  Max concurrent connections")
     print("  MOTEBASE_LOG            Enable logging (0 to disable)")
 end
 

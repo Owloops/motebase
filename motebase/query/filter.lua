@@ -2,16 +2,12 @@ local lpeg = require("lpeg")
 
 local filter = {}
 
--- primitives --
-
 local P, R, S, V = lpeg.P, lpeg.R, lpeg.S, lpeg.V
 local C, Cc = lpeg.C, lpeg.Cc
 
 local ws = S(" \t\n\r") ^ 0
 local digit = R("09")
 local alpha = R("az", "AZ")
-
--- constants --
 
 local SYSTEM_FIELDS = {
     id = true,
@@ -38,8 +34,6 @@ local OP_MAP = {
     ["?!~"] = "NOT LIKE",
 }
 
--- tokens --
-
 local function T(p)
     return p * ws
 end
@@ -57,8 +51,6 @@ local null = T(P("null")) * Cc(nil)
 local identifier = T(C((alpha + P("_")) * (alpha + digit + P("_")) ^ 0))
 
 local value = number + string_lit + boolean_true + boolean_false + null
-
--- operators --
 
 local op_neq = T(P("!=")) * Cc("!=")
 local op_gte = T(P(">=")) * Cc(">=")
@@ -98,8 +90,6 @@ local op_cmp = op_any_neq
 local op_and = T(P("&&")) * Cc("AND")
 local op_or = T(P("||")) * Cc("OR")
 
--- ast builders --
-
 local function build_comparison(field, op, val)
     return { type = "comparison", field = field, op = op, value = val }
 end
@@ -117,8 +107,6 @@ local function fold_left(first, ...)
     return result
 end
 
--- grammar --
-
 local grammar = P({
     "filter",
     filter = ws * V("or_expr") * (P(-1) + P(";")),
@@ -130,8 +118,6 @@ local grammar = P({
 
     comparison = identifier * op_cmp * value / build_comparison,
 })
-
--- public --
 
 function filter.parse(filter_str)
     if not filter_str or filter_str == "" then return nil, "empty filter" end

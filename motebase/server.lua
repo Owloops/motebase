@@ -8,20 +8,84 @@ local ratelimit = require("motebase.ratelimit")
 
 local server = {}
 
-local status_text = {
+-- IANA HTTP Status Codes (http://www.iana.org/assignments/http-status-codes)
+local status_text = setmetatable({
+    -- 1xx Informational
+    [100] = "Continue",
+    [101] = "Switching Protocols",
+    [102] = "Processing",
+    [103] = "Early Hints",
+    -- 2xx Success
     [200] = "OK",
     [201] = "Created",
+    [202] = "Accepted",
+    [203] = "Non-Authoritative Information",
     [204] = "No Content",
+    [205] = "Reset Content",
+    [206] = "Partial Content",
+    [207] = "Multi-Status",
+    [208] = "Already Reported",
+    [226] = "IM Used",
+    -- 3xx Redirection
+    [300] = "Multiple Choices",
+    [301] = "Moved Permanently",
+    [302] = "Found",
+    [303] = "See Other",
+    [304] = "Not Modified",
+    [305] = "Use Proxy",
+    [307] = "Temporary Redirect",
+    [308] = "Permanent Redirect",
+    -- 4xx Client Errors
     [400] = "Bad Request",
     [401] = "Unauthorized",
+    [402] = "Payment Required",
     [403] = "Forbidden",
     [404] = "Not Found",
+    [405] = "Method Not Allowed",
+    [406] = "Not Acceptable",
+    [407] = "Proxy Authentication Required",
+    [408] = "Request Timeout",
+    [409] = "Conflict",
+    [410] = "Gone",
+    [411] = "Length Required",
+    [412] = "Precondition Failed",
+    [413] = "Content Too Large",
+    [414] = "URI Too Long",
+    [415] = "Unsupported Media Type",
+    [416] = "Range Not Satisfiable",
+    [417] = "Expectation Failed",
+    [418] = "I'm a teapot",
+    [421] = "Misdirected Request",
+    [422] = "Unprocessable Content",
+    [423] = "Locked",
+    [424] = "Failed Dependency",
+    [425] = "Too Early",
+    [426] = "Upgrade Required",
+    [428] = "Precondition Required",
     [429] = "Too Many Requests",
+    [431] = "Request Header Fields Too Large",
+    [451] = "Unavailable For Legal Reasons",
+    -- 5xx Server Errors
     [500] = "Internal Server Error",
-}
+    [501] = "Not Implemented",
+    [502] = "Bad Gateway",
+    [503] = "Service Unavailable",
+    [504] = "Gateway Timeout",
+    [505] = "HTTP Version Not Supported",
+    [506] = "Variant Also Negotiates",
+    [507] = "Insufficient Storage",
+    [508] = "Loop Detected",
+    [510] = "Not Extended",
+    [511] = "Network Authentication Required",
+}, {
+    __index = function()
+        return "Unknown"
+    end,
+})
 
 local DEFAULT_KEEP_ALIVE_TIMEOUT = 5
 local DEFAULT_KEEP_ALIVE_MAX = 100
+local DEFAULT_MAX_CONCURRENT = 10000
 
 -- socket --
 
@@ -201,6 +265,12 @@ local function handle_request(wrapper, config)
     local line, err = receive_line(wrapper)
     if err then return false, false, err end
 
+    -- RFC 7230 Section 3.5: ignore at least one empty line before request-line
+    if line == "" then
+        line, err = receive_line(wrapper)
+        if err then return false, false, err end
+    end
+
     local req = parse_request_line(line)
     if not req then
         send_response(wrapper, 400, {}, "Bad Request", false)
@@ -331,6 +401,7 @@ function server.create(config)
     config.timeout = config.timeout or 30
     config.keep_alive_timeout = config.keep_alive_timeout or DEFAULT_KEEP_ALIVE_TIMEOUT
     config.keep_alive_max = config.keep_alive_max or DEFAULT_KEEP_ALIVE_MAX
+    config.max_concurrent = config.max_concurrent or DEFAULT_MAX_CONCURRENT
 
     local srv, err = socket.bind(config.host, config.port)
     if not srv then return nil, "failed to bind: " .. (err or "unknown error") end
@@ -348,6 +419,12 @@ function server.create(config)
     }
 
     local function handle_new_connection(client_sock)
+        if #clients >= config.max_concurrent then
+            client_sock:close()
+            log.warn("http", "max concurrent connections reached, rejecting client")
+            return
+        end
+
         local wrapper = create_client_wrapper(client_sock)
         local coro = coroutine.create(function()
             return handle_client(wrapper, config)

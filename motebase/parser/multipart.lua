@@ -1,21 +1,25 @@
 -- RFC-2046 multipart/form-data parser
 
 local lpeg = require("lpeg")
-local abnf = require("motebase.parser.abnf")
+local core = require("motebase.parser.core")
 local mime = require("motebase.parser.mime")
 
 local C, Cf, Cg, Ct, P = lpeg.C, lpeg.Cf, lpeg.Cg, lpeg.Ct, lpeg.P
 
 local multipart = {}
 
+-- patterns --
+
+local CRLF = P("\r") ^ -1 * P("\n")
+
 local param = Cg(C(mime.token) * P("=") * mime.param_value)
-local params = Cf(Ct("") * (P(";") * abnf.WSP ^ 0 * param) ^ 0, rawset)
+local params = Cf(Ct("") * (P(";") * core.WSP ^ 0 * param) ^ 0, rawset)
 local disposition_grammar = P("form-data") * params
 
 local header_name = C(mime.token)
-local header_value = C((P(1) - abnf.CRLF) ^ 0)
-local header = Cg(header_name * P(":") * abnf.WSP ^ 0 * header_value)
-local header_grammar = Cf(Ct("") * (header * abnf.CRLF) ^ 0, rawset)
+local header_value = C((P(1) - CRLF) ^ 0)
+local header = Cg(header_name * P(":") * core.WSP ^ 0 * header_value)
+local header_grammar = Cf(Ct("") * (header * CRLF) ^ 0, rawset)
 
 function multipart.get_boundary(content_type)
     if not content_type then return nil end

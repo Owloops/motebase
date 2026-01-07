@@ -6,8 +6,6 @@ local expand = {}
 
 local MAX_DEPTH = 6
 
--- primitives --
-
 local P, R, S = lpeg.P, lpeg.R, lpeg.S
 local C, Ct = lpeg.C, lpeg.Ct
 
@@ -16,17 +14,12 @@ local alpha = R("az", "AZ")
 local alnum = R("az", "AZ", "09")
 local identifier = C((alpha + P("_")) * (alnum + P("_")) ^ 0)
 
--- back-relation pattern: posts_via_author --
--- parse the full string and split on _via_
-
 local via_pattern = P({
     "backrel",
     backrel = C((alnum + P("_") - P("_via_")) ^ 1) * P("_via_") * C((alnum + P("_")) ^ 1),
 }) / function(target, via_field)
     return { field = target, via = via_field, back_relation = true }
 end
-
--- forward relation with optional nesting: author.company --
 
 local function build_nested(field, nested)
     if nested then return { field = field, nested = nested } end
@@ -38,15 +31,9 @@ local forward_relation = P({
     path = (identifier * (P(".") * lpeg.V("path")) ^ -1) / build_nested,
 })
 
--- expand item: either back-relation or forward relation --
-
 local expand_item = via_pattern + forward_relation
 
--- comma-separated list --
-
 local expand_list = Ct(ws * expand_item * (ws * P(",") * ws * expand_item) ^ 0 * ws)
-
--- public: parse --
 
 function expand.parse(expand_str)
     if not expand_str or expand_str == "" then return nil end
@@ -57,15 +44,11 @@ function expand.parse(expand_str)
     return result
 end
 
--- helpers --
-
 local function normalize_id(id)
     local n = tonumber(id)
     if n and n == math.floor(n) then return tostring(math.floor(n)) end
     return tostring(id)
 end
-
--- public: fetch and index --
 
 function expand.fetch_and_index(ids, collection_name)
     if #ids == 0 then return {} end
@@ -92,8 +75,6 @@ function expand.fetch_and_index(ids, collection_name)
 
     return index
 end
-
--- internal: process forward relation --
 
 local function process_forward(records, node, schema, get_collection, depth)
     local field_def = schema[node.field]
@@ -163,8 +144,6 @@ local function process_forward(records, node, schema, get_collection, depth)
     end
 end
 
--- internal: process back-relation --
-
 local function process_back_relation(records, node, get_collection)
     local target_collection = node.field
     local via_field = node.via
@@ -208,8 +187,6 @@ local function process_back_relation(records, node, get_collection)
         record.expand[expand_key] = grouped[normalize_id(record.id)] or {}
     end
 end
-
--- public: process expand --
 
 function expand.process(records, expand_tree, source_collection, get_collection, depth)
     depth = depth or 0

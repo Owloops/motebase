@@ -1,7 +1,10 @@
+-- OAuth 2.0 Provider Integration
+
 local http = require("socket.http")
 local ltn12 = require("ltn12")
 local cjson = require("cjson")
 local crypto = require("motebase.crypto")
+local url_util = require("motebase.utils.url")
 
 local oauth = {}
 
@@ -38,34 +41,23 @@ local function generate_state()
     return crypto.to_hex(crypto.random_bytes(16))
 end
 
-local function url_encode(str)
-    return str:gsub("([^%w%-_.~])", function(c)
-        return string.format("%%%02X", string.byte(c))
-    end)
-end
-
-local function build_query(params)
-    local parts = {}
-    for k, v in pairs(params) do
-        parts[#parts + 1] = url_encode(k) .. "=" .. url_encode(v)
-    end
-    return table.concat(parts, "&")
-end
-
 local function http_post(url, body, headers)
     local response_body = {}
+
+    headers = headers or {}
+    headers["Content-Type"] = headers["Content-Type"] or "application/x-www-form-urlencoded"
+    headers["Accept"] = headers["Accept"] or "application/json"
+    headers["Content-Length"] = tostring(#body)
+
     local result, code = http.request({
         url = url,
         method = "POST",
-        headers = headers or {
-            ["Content-Type"] = "application/x-www-form-urlencoded",
-            ["Accept"] = "application/json",
-        },
+        headers = headers,
         source = ltn12.source.string(body),
         sink = ltn12.sink.table(response_body),
     })
 
-    if not result then return nil, "request failed" end
+    if not result then return nil, "request failed: " .. tostring(code) end
 
     local body_str = table.concat(response_body)
     local ok, data = pcall(cjson.decode, body_str)
@@ -76,6 +68,10 @@ end
 
 local function http_get(url, headers)
     local response_body = {}
+
+    headers = headers or {}
+    headers["Accept"] = headers["Accept"] or "application/json"
+
     local result, code = http.request({
         url = url,
         method = "GET",
@@ -83,7 +79,7 @@ local function http_get(url, headers)
         sink = ltn12.sink.table(response_body),
     })
 
-    if not result then return nil, "request failed" end
+    if not result then return nil, "request failed: " .. tostring(code) end
 
     local body_str = table.concat(response_body)
     local ok, data = pcall(cjson.decode, body_str)
@@ -136,7 +132,7 @@ function oauth.get_auth_url(provider_name)
         state = state,
     }
 
-    return p.auth_url .. "?" .. build_query(params), state
+    return p.auth_url .. "?" .. url_util.build_query(params), state
 end
 
 function oauth.exchange_code(provider_name, code, state)
@@ -152,7 +148,7 @@ function oauth.exchange_code(provider_name, code, state)
 
     if os.time() > state_info.expires then return nil, "state expired" end
 
-    local body = build_query({
+    local body = url_util.build_query({
         client_id = p.client_id,
         client_secret = p.client_secret,
         code = code,

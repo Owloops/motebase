@@ -1,12 +1,13 @@
+-- Parser Module Aggregator
+
 local parser = {}
 
-parser.abnf = require("motebase.parser.abnf")
+parser.core = require("motebase.parser.core")
 parser.email = require("motebase.parser.email")
 parser.http = require("motebase.parser.http")
-parser.ih = require("motebase.parser.ih")
 parser.ip = require("motebase.parser.ip")
 parser.mime = require("motebase.parser.mime")
 parser.multipart = require("motebase.parser.multipart")
-parser.url = require("motebase.parser.url")
+parser.uri = require("motebase.parser.uri")
 
 return parser

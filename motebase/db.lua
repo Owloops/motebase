@@ -4,6 +4,17 @@ local db = {}
 
 local conn
 
+local function bind_params(stmt, params)
+    if not params then return end
+    for i, v in ipairs(params) do
+        if type(v) == "boolean" then
+            stmt:bind(i, v and 1 or 0)
+        else
+            stmt:bind(i, v)
+        end
+    end
+end
+
 function db.open(path)
     path = path or ":memory:"
     local err
@@ -35,24 +46,7 @@ function db.query(sql, params)
     local stmt = conn:prepare(sql)
     if not stmt then return nil, conn:errmsg() end
 
-    if params then
-        for i, v in ipairs(params) do
-            local t = type(v)
-            if t == "nil" then
-                stmt:bind_null(i)
-            elseif t == "number" then
-                if math.floor(v) == v then
-                    stmt:bind(i, v)
-                else
-                    stmt:bind(i, v)
-                end
-            elseif t == "boolean" then
-                stmt:bind(i, v and 1 or 0)
-            else
-                stmt:bind(i, tostring(v))
-            end
-        end
-    end
+    bind_params(stmt, params)
 
     local rows = {}
     for row in stmt:nrows() do
@@ -67,20 +61,7 @@ function db.insert(sql, params)
     local stmt = conn:prepare(sql)
     if not stmt then return nil, conn:errmsg() end
 
-    if params then
-        for i, v in ipairs(params) do
-            local t = type(v)
-            if t == "nil" then
-                stmt:bind_null(i)
-            elseif t == "number" then
-                stmt:bind(i, v)
-            elseif t == "boolean" then
-                stmt:bind(i, v and 1 or 0)
-            else
-                stmt:bind(i, tostring(v))
-            end
-        end
-    end
+    bind_params(stmt, params)
 
     local result = stmt:step()
     stmt:finalize()
@@ -94,20 +75,7 @@ function db.run(sql, params)
     local stmt = conn:prepare(sql)
     if not stmt then return nil, conn:errmsg() end
 
-    if params then
-        for i, v in ipairs(params) do
-            local t = type(v)
-            if t == "nil" then
-                stmt:bind_null(i)
-            elseif t == "number" then
-                stmt:bind(i, v)
-            elseif t == "boolean" then
-                stmt:bind(i, v and 1 or 0)
-            else
-                stmt:bind(i, tostring(v))
-            end
-        end
-    end
+    bind_params(stmt, params)
 
     local result = stmt:step()
     stmt:finalize()

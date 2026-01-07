@@ -54,8 +54,6 @@ local function write(level, category, message, context)
     end
 end
 
--- security --
-
 function module.auth_success(user_id, method)
     write(levels.info, "auth", "authentication successful", {
         user_id = user_id,
@@ -74,8 +72,6 @@ end
 function module.token_rejected(reason, context)
     write(levels.warn, "auth", "token rejected: " .. reason, context)
 end
-
--- general --
 
 function module.debug(category, message, context)
     write(levels.debug, category, message, context)
