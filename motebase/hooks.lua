@@ -126,4 +126,13 @@ function hooks.after_delete(collection, fn)
     table.insert(after_delete[collection], fn)
 end
 
+function hooks.reset()
+    before_create = {}
+    after_create = {}
+    before_update = {}
+    after_update = {}
+    before_delete = {}
+    after_delete = {}
+end
+
 return hooks
