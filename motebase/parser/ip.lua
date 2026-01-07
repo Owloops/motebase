@@ -1,5 +1,6 @@
 -- RFC 3986 IP Address Parsing
 
+---@diagnostic disable-next-line: deprecated
 local unpack = table.unpack or unpack
 
 local lpeg = require("lpeg")

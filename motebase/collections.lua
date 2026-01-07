@@ -211,7 +211,8 @@ function collections.get_record(name, id, expand_string)
     return record
 end
 
-function collections.create_record(name, data, multipart_parts)
+---@diagnostic disable-next-line: unused-local
+function collections.create_record(name, data, multipart_parts, _ctx)
     local collection = collections.get(name)
     if not collection then return nil, "collection not found" end
 
@@ -293,7 +294,8 @@ function collections.create_record(name, data, multipart_parts)
     return record
 end
 
-function collections.update_record(name, id, data, multipart_parts)
+---@diagnostic disable-next-line: unused-local
+function collections.update_record(name, id, data, multipart_parts, _ctx)
     local collection = collections.get(name)
     if not collection then return nil, "collection not found" end
 
@@ -364,7 +366,8 @@ function collections.update_record(name, id, data, multipart_parts)
     return record
 end
 
-function collections.delete_record(name, id)
+---@diagnostic disable-next-line: unused-local
+function collections.delete_record(name, id, _ctx)
     local collection = collections.get(name)
     if not collection then return nil, "collection not found" end
 

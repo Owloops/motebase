@@ -34,6 +34,9 @@ local function parse_args(args)
         elseif a == "--max-connections" then
             config.max_concurrent = tonumber(args[i + 1])
             i = i + 2
+        elseif a == "--hooks" or a == "-H" then
+            config.hooks = args[i + 1]
+            i = i + 2
         elseif a == "--help" then
             return nil, "help"
         else
@@ -56,6 +59,7 @@ local function print_help()
     print("  --superuser <email>     Superuser email (bypasses API rules)")
     print("  --ratelimit <n>         Requests per minute (0 to disable, default: 100)")
     print("  --max-connections <n>   Max concurrent connections (default: 10000)")
+    print("  -H, --hooks <path>      Lua file to load for custom hooks/routes")
     print("  --help                  Show this help message")
     print("")
     print("Environment variables:")
@@ -72,13 +76,14 @@ end
 local function main()
     local config, action = parse_args(arg)
 
-    if action == "help" then
+    if action == "help" or not config then
         print_help()
         os.exit(0)
     end
 
     local motebase = require("motebase")
     local output = require("motebase.utils.output")
+    local log = require("motebase.utils.log")
 
     local srv, err = motebase.start(config)
     if not srv then
@@ -108,6 +113,16 @@ local function main()
                 .. output.reset()
                 .. " using default JWT secret - set MOTEBASE_SECRET in production\n"
         )
+    end
+
+    if config.hooks then
+        local hooks_path = config.hooks
+        local ok, hooks_err = pcall(dofile, hooks_path)
+        if not ok then
+            log.error("hooks", "failed to load hooks file", { path = hooks_path, error = tostring(hooks_err) })
+            os.exit(1)
+        end
+        log.info("hooks", "loaded hooks file", { path = hooks_path })
     end
 
     srv:run()

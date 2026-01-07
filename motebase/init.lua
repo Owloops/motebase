@@ -265,7 +265,7 @@ local function handle_create_record(ctx)
         return
     end
 
-    local record, err = collections.create_record(name, json_data, multipart_parts)
+    local record, err = collections.create_record(name, json_data, multipart_parts, ctx)
     if not record then
         if type(err) == "table" then
             server.json(ctx, 400, { errors = err })
@@ -311,7 +311,7 @@ local function handle_update_record(ctx)
         return
     end
 
-    local record, err = collections.update_record(name, id, json_data, multipart_parts)
+    local record, err = collections.update_record(name, id, json_data, multipart_parts, ctx)
     if not record then
         if type(err) == "table" then
             server.json(ctx, 400, { errors = err })
@@ -354,7 +354,7 @@ local function handle_delete_record(ctx)
         return
     end
 
-    local ok, err = collections.delete_record(name, id)
+    local ok, err = collections.delete_record(name, id, ctx)
     if not ok then
         server.error(ctx, 404, err)
         return

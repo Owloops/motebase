@@ -113,6 +113,7 @@ luajit ./bin/motebase.lua
 | `--superuser` | Superuser email address | First registered user |
 | `--ratelimit` | Requests per minute (0 to disable) | `100` |
 | `--max-connections` | Max concurrent connections | `10000` |
+| `-H, --hooks` | Lua file for custom hooks/routes | |
 | `--help` | Show help message | |
 
 ### Environment Variables
@@ -595,6 +596,139 @@ example.com {
     reverse_proxy localhost:8080
 }
 ```
+
+## Hooks
+
+Extend MoteBase with custom Lua code loaded at startup:
+
+```bash
+motebase --hooks hooks.lua
+```
+
+### Full Internal Access
+
+All modules are available via `require()`:
+
+| Module | Description |
+|--------|-------------|
+| `motebase.db` | Database operations |
+| `motebase.auth` | Authentication |
+| `motebase.collections` | CRUD operations |
+| `motebase.router` | Route registration |
+| `motebase.server` | Response helpers (json, error, redirect) |
+| `motebase.jwt` | JWT encoding/decoding |
+| `motebase.files` | File storage |
+| `motebase.realtime` | SSE broadcasting |
+| `motebase.rules` | Rule evaluation |
+| `motebase.mail` | Email sending |
+| `motebase.oauth` | OAuth providers |
+
+Wrap any function to add custom behavior:
+
+```lua
+-- hooks.lua
+local auth = require("motebase.auth")
+
+local original_login = auth.login
+auth.login = function(email, password, secret, expires_in)
+    print("login attempt: " .. email)
+    local result, err = original_login(email, password, secret, expires_in)
+    if result then print("login success: " .. email) end
+    return result, err
+end
+```
+
+### Custom Routes
+
+```lua
+local router = require("motebase.router")
+local server = require("motebase.server")
+local db = require("motebase.db")
+
+router.post("/api/checkout", function(ctx)
+    -- ctx.user contains JWT payload if authenticated: sub (user_id), iat, exp, jti
+    -- ctx.body contains request JSON
+    server.json(ctx, 200, { status = "ok", user_id = ctx.user and ctx.user.sub })
+end)
+
+router.get("/api/stats", function(ctx)
+    local result = db.query("SELECT COUNT(*) as count FROM posts")
+    server.json(ctx, 200, { posts = result[1].count })
+end)
+```
+
+**Response helpers:** `server.json(ctx, status, data)`, `server.error(ctx, status, message)`, `server.redirect(ctx, url)`
+
+### Convenience Helpers
+
+For common patterns, use the hooks module:
+
+```lua
+local hooks = require("motebase.hooks")
+
+-- Before hooks can modify data or cancel operations
+hooks.before_create("orders", function(record, ctx)
+    record.total = calculate_total(record.items)
+    return record  -- return modified record
+    -- return nil, "error message" to cancel
+end)
+
+-- After hooks for side effects
+hooks.after_create("orders", function(record, ctx)
+    send_order_confirmation(record)
+end)
+
+-- Wildcard for all collections
+hooks.before_create("*", function(record, ctx)
+    record.created_by = ctx.user and ctx.user.sub
+    return record
+end)
+```
+
+Available hooks: `before_create`, `after_create`, `before_update`, `after_update`, `before_delete`, `after_delete`
+
+### External Modules
+
+Place `.lua` files in the same directory as your hooks file:
+
+```
+myapp/
+├── hooks.lua        # require("mylib") works
+├── mylib.lua
+└── utils/
+    └── helpers.lua  # require("utils.helpers") works
+```
+
+Or add luarocks paths for pure Lua modules:
+
+```lua
+-- hooks.lua
+package.path = package.path .. ";?.lua;?/init.lua"
+
+local inspect = require("inspect")
+```
+
+**Note:** C modules (`.so` files) are not supported in the static binary.
+
+### External API Integration
+
+Hooks have full access to HTTP clients for calling external APIs:
+
+```lua
+local https = require("ssl.https")
+local ltn12 = require("ltn12")
+
+router.get("/api/external", function(ctx)
+    local response = {}
+    https.request({
+        url = "https://api.example.com/data",
+        sink = ltn12.sink.table(response),
+    })
+    server.json(ctx, 200, { data = table.concat(response) })
+end)
+```
+
+**Bundled libraries:** `socket.http`, `ssl.https`, `ltn12`, `cjson`, `lpeg`, `lfs`
 
 ## Development
 

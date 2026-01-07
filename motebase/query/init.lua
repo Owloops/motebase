@@ -3,6 +3,7 @@ local sort = require("motebase.query.sort")
 local expand = require("motebase.query.expand")
 local url_util = require("motebase.utils.url")
 
+---@diagnostic disable-next-line: deprecated
 local unpack = table.unpack or unpack
 
 local query = {}

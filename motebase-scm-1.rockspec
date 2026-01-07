@@ -80,6 +80,7 @@ build = {
         ["motebase.realtime.sse"] = "motebase/realtime/sse.lua",
         ["motebase.mail"] = "motebase/mail.lua",
         ["motebase.oauth"] = "motebase/oauth.lua",
+        ["motebase.hooks"] = "motebase/hooks.lua",
     },
     install = {
         bin = {
