@@ -55,9 +55,7 @@ function s3_storage.create(config)
 
     function backend.delete_dir(path)
         path = sanitize_path(path)
-        if not path:match("/$") and path ~= "" then
-            path = path.."/"
-        end
+        if not path:match("/$") and path ~= "" then path = path .. "/" end
 
         local keys, err = s3_client.list(path)
         if not keys then return nil, err end

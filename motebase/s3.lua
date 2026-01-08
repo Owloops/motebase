@@ -33,9 +33,7 @@ function s3.configure(opts)
     config.path_style = opts.path_style or false
     config.use_ssl = opts.use_ssl ~= false
 
-    if not config.endpoint and config.bucket then
-        config.endpoint = "s3."..config.region..".amazonaws.com"
-    end
+    if not config.endpoint and config.bucket then config.endpoint = "s3." .. config.region .. ".amazonaws.com" end
 end
 
 function s3.reset()
@@ -84,10 +82,10 @@ local function get_host_and_uri(key)
     local host, uri
     if config.path_style then
         host = config.endpoint
-        uri = "/"..config.bucket.."/"..uri_encode(key, false)
+        uri = "/" .. config.bucket .. "/" .. uri_encode(key, false)
     else
-        host = config.bucket.."."..config.endpoint
-        uri = "/"..uri_encode(key, false)
+        host = config.bucket .. "." .. config.endpoint
+        uri = "/" .. uri_encode(key, false)
     end
     return host, uri
 end
@@ -96,21 +94,21 @@ local function create_canonical_request(method, uri, query, headers, signed_head
     local canonical_headers = {}
     for i = 1, #signed_headers do
         local name = signed_headers[i]
-        insert(canonical_headers, name..":"..headers[name])
+        insert(canonical_headers, name .. ":" .. headers[name])
     end
 
     return concat({
         method,
         uri,
         query or "",
-        concat(canonical_headers, "\n").."\n",
+        concat(canonical_headers, "\n") .. "\n",
         concat(signed_headers, ";"),
         payload_hash,
     }, "\n")
 end
 
 local function create_string_to_sign(canonical_request, amz_date, datestamp)
-    local scope = datestamp.."/"..config.region.."/s3/aws4_request"
+    local scope = datestamp .. "/" .. config.region .. "/s3/aws4_request"
     local request_hash = sha256_hex(canonical_request)
 
     return concat({
@@ -118,11 +116,12 @@ local function create_string_to_sign(canonical_request, amz_date, datestamp)
         amz_date,
         scope,
         request_hash,
-    }, "\n"), scope
+    }, "\n"),
+        scope
 end
 
 local function calculate_signature(string_to_sign, datestamp)
-    local k_date = crypto.hmac_sha256("AWS4"..config.secret_key, datestamp)
+    local k_date = crypto.hmac_sha256("AWS4" .. config.secret_key, datestamp)
     local k_region = crypto.hmac_sha256(k_date, config.region)
     local k_service = crypto.hmac_sha256(k_region, "s3")
     local k_signing = crypto.hmac_sha256(k_service, "aws4_request")
@@ -153,19 +152,18 @@ local function sign_request(method, key, extra_headers, body, query)
     end
     sort(signed_headers)
 
-    local canonical_request = create_canonical_request(
-        method, uri, query, headers, signed_headers, payload_hash
-    )
+    local canonical_request = create_canonical_request(method, uri, query, headers, signed_headers, payload_hash)
 
-    local string_to_sign, scope = create_string_to_sign(
-        canonical_request, amz_date, datestamp
-    )
+    local string_to_sign, scope = create_string_to_sign(canonical_request, amz_date, datestamp)
 
     local signature = calculate_signature(string_to_sign, datestamp)
 
     headers["authorization"] = format(
         "AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s",
-        config.access_key, scope, concat(signed_headers, ";"), signature
+        config.access_key,
+        scope,
+        concat(signed_headers, ";"),
+        signature
     )
 
     local request_headers = {}
@@ -182,10 +180,8 @@ local function make_request(method, key, body, extra_headers, query)
     local host, uri, headers = sign_request(method, key, extra_headers, body, query)
 
     local protocol = config.use_ssl and "https" or "http"
-    local url = protocol.."://"..host..uri
-    if query and query ~= "" then
-        url = url.."?"..query
-    end
+    local url = protocol .. "://" .. host .. uri
+    if query and query ~= "" then url = url .. "?" .. query end
 
     local response = {}
     local request = {
@@ -195,9 +191,7 @@ local function make_request(method, key, body, extra_headers, query)
         sink = ltn12.sink.table(response),
     }
 
-    if body and #body > 0 then
-        request.source = ltn12.source.string(body)
-    end
+    if body and #body > 0 then request.source = ltn12.source.string(body) end
 
     local client = config.use_ssl and https or http
     local _, code, response_headers = client.request(request)
@@ -213,15 +207,11 @@ function s3.put(key, data, content_type)
     local headers = {
         ["content-length"] = tostring(#data),
     }
-    if content_type then
-        headers["content-type"] = content_type
-    end
+    if content_type then headers["content-type"] = content_type end
 
     local code, body = make_request("PUT", key, data, headers)
 
-    if code ~= 200 and code ~= 204 then
-        return nil, "S3 PUT failed: "..tostring(code).." "..tostring(body)
-    end
+    if code ~= 200 and code ~= 204 then return nil, "S3 PUT failed: " .. tostring(code) .. " " .. tostring(body) end
 
     return true
 end
@@ -233,13 +223,9 @@ function s3.get(key)
 
     local code, body = make_request("GET", key, nil, nil)
 
-    if code == 404 then
-        return nil, "not found"
-    end
+    if code == 404 then return nil, "not found" end
 
-    if code ~= 200 then
-        return nil, "S3 GET failed: "..tostring(code).." "..tostring(body)
-    end
+    if code ~= 200 then return nil, "S3 GET failed: " .. tostring(code) .. " " .. tostring(body) end
 
     return body
 end
@@ -251,9 +237,7 @@ function s3.delete(key)
 
     local code, body = make_request("DELETE", key, nil, nil)
 
-    if code ~= 200 and code ~= 204 then
-        return nil, "S3 DELETE failed: "..tostring(code).." "..tostring(body)
-    end
+    if code ~= 200 and code ~= 204 then return nil, "S3 DELETE failed: " .. tostring(code) .. " " .. tostring(body) end
 
     return true
 end
@@ -265,13 +249,9 @@ function s3.head(key)
 
     local code = make_request("HEAD", key, nil, nil)
 
-    if code == 404 then
-        return false
-    end
+    if code == 404 then return false end
 
-    if code ~= 200 then
-        return nil, "S3 HEAD failed: "..tostring(code)
-    end
+    if code ~= 200 then return nil, "S3 HEAD failed: " .. tostring(code) end
 
     return true
 end
@@ -282,15 +262,11 @@ function s3.list(prefix)
     if not config.secret_key then return nil, "secret_key not configured" end
 
     local query = "list-type=2"
-    if prefix and prefix ~= "" then
-        query = query.."&prefix="..uri_encode(prefix, true)
-    end
+    if prefix and prefix ~= "" then query = query .. "&prefix=" .. uri_encode(prefix, true) end
 
     local code, body = make_request("GET", "", nil, nil, query)
 
-    if code ~= 200 then
-        return nil, "S3 LIST failed: "..tostring(code).." "..tostring(body)
-    end
+    if code ~= 200 then return nil, "S3 LIST failed: " .. tostring(code) .. " " .. tostring(body) end
 
     local keys = {}
     for key in body:gmatch("<Key>([^<]+)</Key>") do
@@ -306,9 +282,7 @@ function s3.test_connection()
     if not config.secret_key then return nil, "secret_key not configured" end
 
     local keys, err = s3.list("")
-    if not keys then
-        return nil, "connection test failed: "..tostring(err)
-    end
+    if not keys then return nil, "connection test failed: " .. tostring(err) end
 
     return true
 end
