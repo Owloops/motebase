@@ -13,7 +13,7 @@ function storage.init(config)
         local s3_storage = require("motebase.storage.s3")
         backend = s3_storage.create(config)
     else
-        return nil, "unknown storage backend: "..backend_type
+        return nil, "unknown storage backend: " .. backend_type
     end
 
     return backend.init()
