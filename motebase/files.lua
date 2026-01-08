@@ -12,6 +12,14 @@ local config = {
     storage_path = "./storage",
     file_token_duration = 120,
     secret = nil,
+    storage_backend = "local",
+    s3_bucket = nil,
+    s3_region = nil,
+    s3_endpoint = nil,
+    s3_access_key = nil,
+    s3_secret_key = nil,
+    s3_path_style = false,
+    s3_use_ssl = true,
 }
 
 function files.configure(opts)
@@ -20,10 +28,28 @@ function files.configure(opts)
     if opts.storage_path then config.storage_path = opts.storage_path end
     if opts.file_token_duration then config.file_token_duration = opts.file_token_duration end
     if opts.secret ~= nil then config.secret = opts.secret end
+    if opts.storage_backend then config.storage_backend = opts.storage_backend end
+    if opts.s3_bucket then config.s3_bucket = opts.s3_bucket end
+    if opts.s3_region then config.s3_region = opts.s3_region end
+    if opts.s3_endpoint then config.s3_endpoint = opts.s3_endpoint end
+    if opts.s3_access_key then config.s3_access_key = opts.s3_access_key end
+    if opts.s3_secret_key then config.s3_secret_key = opts.s3_secret_key end
+    if opts.s3_path_style ~= nil then config.s3_path_style = opts.s3_path_style end
+    if opts.s3_use_ssl ~= nil then config.s3_use_ssl = opts.s3_use_ssl end
 end
 
 function files.init()
-    return storage.init({ storage_path = config.storage_path })
+    return storage.init({
+        storage_path = config.storage_path,
+        storage_backend = config.storage_backend,
+        s3_bucket = config.s3_bucket,
+        s3_region = config.s3_region,
+        s3_endpoint = config.s3_endpoint,
+        s3_access_key = config.s3_access_key,
+        s3_secret_key = config.s3_secret_key,
+        s3_path_style = config.s3_path_style,
+        s3_use_ssl = config.s3_use_ssl,
+    })
 end
 
 -- mime types --

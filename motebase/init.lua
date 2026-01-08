@@ -692,6 +692,14 @@ function motebase.start(config)
         storage_path = config.storage_path,
         max_file_size = config.max_file_size,
         secret = config.secret or os.getenv("MOTEBASE_SECRET") or "change-me-in-production",
+        storage_backend = config.storage_backend or os.getenv("MOTEBASE_STORAGE_BACKEND") or "local",
+        s3_bucket = config.s3_bucket or os.getenv("MOTEBASE_S3_BUCKET"),
+        s3_region = config.s3_region or os.getenv("MOTEBASE_S3_REGION"),
+        s3_endpoint = config.s3_endpoint or os.getenv("MOTEBASE_S3_ENDPOINT"),
+        s3_access_key = config.s3_access_key or os.getenv("MOTEBASE_S3_ACCESS_KEY"),
+        s3_secret_key = config.s3_secret_key or os.getenv("MOTEBASE_S3_SECRET_KEY"),
+        s3_path_style = config.s3_path_style or os.getenv("MOTEBASE_S3_PATH_STYLE") == "true",
+        s3_use_ssl = config.s3_use_ssl ~= false and os.getenv("MOTEBASE_S3_USE_SSL") ~= "false",
     })
     local files_ok, files_err = files.init()
     if not files_ok then return nil, files_err end

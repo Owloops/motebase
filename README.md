@@ -148,6 +148,53 @@ luajit ./bin/motebase.lua
 | `MOTEBASE_OAUTH_GITHUB_SECRET` | GitHub OAuth client secret |
 | `MOTEBASE_OAUTH_REDIRECT_URL` | OAuth callback base URL (e.g., `https://api.example.com`) |
 
+#### S3 Storage
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MOTEBASE_STORAGE_BACKEND` | Storage backend (`local` or `s3`) | `local` |
+| `MOTEBASE_S3_BUCKET` | S3 bucket name | |
+| `MOTEBASE_S3_REGION` | AWS region | `us-east-1` |
+| `MOTEBASE_S3_ENDPOINT` | S3 endpoint (for non-AWS services) | Auto |
+| `MOTEBASE_S3_ACCESS_KEY` | S3 access key ID | |
+| `MOTEBASE_S3_SECRET_KEY` | S3 secret access key | |
+| `MOTEBASE_S3_PATH_STYLE` | Use path-style URLs (`true`/`false`) | `false` |
+| `MOTEBASE_S3_USE_SSL` | Use HTTPS for S3 (`true`/`false`) | `true` |
+
+**AWS S3:**
+```bash
+MOTEBASE_STORAGE_BACKEND=s3 \
+MOTEBASE_S3_BUCKET=my-app-files \
+MOTEBASE_S3_REGION=us-west-2 \
+MOTEBASE_S3_ACCESS_KEY=AKIA... \
+MOTEBASE_S3_SECRET_KEY=secret \
+./motebase
+```
+
+**Cloudflare R2:**
+```bash
+MOTEBASE_STORAGE_BACKEND=s3 \
+MOTEBASE_S3_BUCKET=my-app-files \
+MOTEBASE_S3_REGION=auto \
+MOTEBASE_S3_ENDPOINT=<account>.r2.cloudflarestorage.com \
+MOTEBASE_S3_ACCESS_KEY=... \
+MOTEBASE_S3_SECRET_KEY=... \
+MOTEBASE_S3_PATH_STYLE=true \
+./motebase
+```
+
+**MinIO (self-hosted):**
+```bash
+MOTEBASE_STORAGE_BACKEND=s3 \
+MOTEBASE_S3_BUCKET=my-app-files \
+MOTEBASE_S3_ENDPOINT=minio.local:9000 \
+MOTEBASE_S3_ACCESS_KEY=minioadmin \
+MOTEBASE_S3_SECRET_KEY=minioadmin \
+MOTEBASE_S3_PATH_STYLE=true \
+MOTEBASE_S3_USE_SSL=false \
+./motebase
+```
+
 ## API
 
 ### Collections
