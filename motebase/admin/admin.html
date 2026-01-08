@@ -1,0 +1,992 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MoteBase Admin</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='8 8 48 48'%3E%3Crect x='12' y='22' width='10' height='10' fill='%231e3a8a'/%3E%3Crect x='42' y='22' width='10' height='10' fill='%231e3a8a'/%3E%3Crect x='22' y='12' width='10' height='10' fill='%231e3a8a'/%3E%3Crect x='32' y='12' width='10' height='10' fill='%231e3a8a'/%3E%3Crect x='12' y='32' width='10' height='10' fill='%231e3a8a'/%3E%3Crect x='42' y='32' width='10' height='10' fill='%231e3a8a'/%3E%3Crect x='22' y='42' width='10' height='10' fill='%231e3a8a'/%3E%3Crect x='32' y='42' width='10' height='10' fill='%231e3a8a'/%3E%3Crect x='22' y='22' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='32' y='22' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='22' y='32' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='32' y='32' width='10' height='10' fill='%233b82f6'/%3E%3Crect x='27' y='27' width='10' height='10' fill='%2360a5fa'/%3E%3C/svg%3E">
+    <!-- Google Fonts - Inter for UI, JetBrains Mono for code -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/_/admin.css">
+</head>
+<body x-data="adminApp()" x-init="init()" x-cloak>
+
+    <!-- Login Screen -->
+    <template x-if="!authToken">
+        <main class="container login-container">
+            <article>
+                <header>
+                    <svg class="brand-logo" viewBox="0 0 64 64" aria-label="MoteBase">
+                        <rect x="12" y="22" width="10" height="10" fill="#1e3a8a"/>
+                        <rect x="42" y="22" width="10" height="10" fill="#1e3a8a"/>
+                        <rect x="22" y="12" width="10" height="10" fill="#1e3a8a"/>
+                        <rect x="32" y="12" width="10" height="10" fill="#1e3a8a"/>
+                        <rect x="12" y="32" width="10" height="10" fill="#1e3a8a"/>
+                        <rect x="42" y="32" width="10" height="10" fill="#1e3a8a"/>
+                        <rect x="22" y="42" width="10" height="10" fill="#1e3a8a"/>
+                        <rect x="32" y="42" width="10" height="10" fill="#1e3a8a"/>
+                        <rect x="22" y="22" width="10" height="10" fill="#3b82f6"/>
+                        <rect x="32" y="22" width="10" height="10" fill="#3b82f6"/>
+                        <rect x="22" y="32" width="10" height="10" fill="#3b82f6"/>
+                        <rect x="32" y="32" width="10" height="10" fill="#3b82f6"/>
+                        <rect x="27" y="27" width="10" height="10" fill="#60a5fa"/>
+                    </svg>
+                </header>
+                <form @submit.prevent="handleLogin()">
+                    <label>
+                        Email
+                        <input
+                            type="email"
+                            x-model="loginForm.email"
+                            placeholder="admin@example.com"
+                            required
+                            autofocus
+                        >
+                    </label>
+                    <label>
+                        Password
+                        <input
+                            type="password"
+                            x-model="loginForm.password"
+                            placeholder="Password"
+                            required
+                        >
+                    </label>
+                    <button type="submit" :aria-busy="isLoading" :disabled="isLoading">
+                        Login
+                    </button>
+                    <p x-show="errorMessage" x-text="errorMessage" class="error-message"></p>
+                </form>
+            </article>
+        </main>
+    </template>
+
+    <!-- Authenticated App -->
+    <template x-if="authToken">
+        <div>
+            <!-- Header -->
+            <header class="admin-header">
+                <nav class="container">
+                    <ul>
+                        <li>
+                            <a href="#/" @click="navigateTo('/')" class="brand-link" aria-label="MoteBase Home">
+                                <svg class="brand-logo-nav" viewBox="0 0 64 64">
+                                    <rect x="12" y="22" width="10" height="10" fill="#1e3a8a"/>
+                                    <rect x="42" y="22" width="10" height="10" fill="#1e3a8a"/>
+                                    <rect x="22" y="12" width="10" height="10" fill="#1e3a8a"/>
+                                    <rect x="32" y="12" width="10" height="10" fill="#1e3a8a"/>
+                                    <rect x="12" y="32" width="10" height="10" fill="#1e3a8a"/>
+                                    <rect x="42" y="32" width="10" height="10" fill="#1e3a8a"/>
+                                    <rect x="22" y="42" width="10" height="10" fill="#1e3a8a"/>
+                                    <rect x="32" y="42" width="10" height="10" fill="#1e3a8a"/>
+                                    <rect x="22" y="22" width="10" height="10" fill="#3b82f6"/>
+                                    <rect x="32" y="22" width="10" height="10" fill="#3b82f6"/>
+                                    <rect x="22" y="32" width="10" height="10" fill="#3b82f6"/>
+                                    <rect x="32" y="32" width="10" height="10" fill="#3b82f6"/>
+                                    <rect x="27" y="27" width="10" height="10" fill="#60a5fa"/>
+                                </svg>
+                            </a>
+                        </li>
+                    </ul>
+                    <ul>
+                        <li class="user-dropdown" x-data="{ open: false }" @click.away="open = false">
+                            <button class="user-dropdown-trigger" @click="open = !open">
+                                <span class="user-avatar" x-text="currentUser?.email?.charAt(0).toUpperCase()"></span>
+                            </button>
+                            <div class="user-dropdown-menu" x-show="open" x-transition>
+                                <div class="user-dropdown-email" x-text="currentUser?.email"></div>
+                                <a href="#/logs" @click="open = false; navigateTo('/logs')">Logs</a>
+                                <a href="#/settings" @click="open = false; navigateTo('/settings')">Settings</a>
+                                <hr>
+                                <a href="#" @click.prevent="handleLogout()">Logout</a>
+                            </div>
+                        </li>
+                    </ul>
+                </nav>
+            </header>
+
+            <main class="container" style="padding-top: var(--spacing-lg);">
+
+                <!-- Dashboard -->
+                <template x-if="currentRoute === 'dashboard'">
+                    <div>
+                        <div class="page-header">
+                            <h2>Collections</h2>
+                            <div style="display: flex; gap: var(--spacing-sm); align-items: center;">
+                                <input
+                                    type="search"
+                                    placeholder="Search collections..."
+                                    x-model="collectionSearchQuery"
+                                    @input="collectionsPage = 1"
+                                    style="margin: 0; width: 200px;"
+                                    x-show="collections.length > 0"
+                                >
+                                <button @click="openCollectionModal()">+ New Collection</button>
+                            </div>
+                        </div>
+
+                        <div x-show="isLoading" class="empty-state">Loading...</div>
+
+                        <div x-show="!isLoading && collections.length === 0" class="empty-state">
+                            <p>No collections found.</p>
+                            <button @click="openCollectionModal()">Create your first collection</button>
+                        </div>
+
+                        <div x-show="!isLoading && collections.length > 0 && filteredCollections.length === 0" class="empty-state">
+                            <p>No collections match "<span x-text="collectionSearchQuery"></span>"</p>
+                        </div>
+
+                        <div class="card-grid" x-show="!isLoading && filteredCollections.length > 0">
+                            <template x-for="collection in paginatedCollections" :key="collection.name">
+                                <article
+                                    class="collection-card"
+                                    @click="navigateTo('/collections/' + collection.name)"
+                                >
+                                    <header>
+                                        <strong x-text="collection.name"></strong>
+                                        <span class="badge" x-text="collection.type || 'base'"></span>
+                                    </header>
+                                    <p>
+                                        <span x-text="schemaToArray(collection.schema).length"></span> fields
+                                    </p>
+                                    <footer>
+                                        <button
+                                            class="outline secondary"
+                                            @click.stop="openCollectionModal(collection)"
+                                        >
+                                            Edit
+                                        </button>
+                                    </footer>
+                                </article>
+                            </template>
+                        </div>
+
+                        <div class="pagination" x-show="!isLoading && filteredCollections.length > 0">
+                            <span style="color: var(--color-text-muted); font-size: 0.875rem;" x-text="filteredCollections.length + ' collection' + (filteredCollections.length !== 1 ? 's' : '')"></span>
+                            <div style="flex: 1;"></div>
+                            <template x-if="collectionsTotalPages > 1">
+                                <div style="display: flex; align-items: center; gap: var(--spacing-md);">
+                                    <button
+                                        @click="collectionsPage--"
+                                        :disabled="collectionsPage <= 1"
+                                        class="outline"
+                                        style="width: auto; margin: 0; padding: 4px 12px;"
+                                    >
+                                        ← Prev
+                                    </button>
+                                    <span x-text="collectionsPage + ' / ' + collectionsTotalPages"></span>
+                                    <button
+                                        @click="collectionsPage++"
+                                        :disabled="collectionsPage >= collectionsTotalPages"
+                                        class="outline"
+                                        style="width: auto; margin: 0; padding: 4px 12px;"
+                                    >
+                                        Next →
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Collection Browser -->
+                <template x-if="currentRoute === 'collection'">
+                    <div>
+                        <nav class="breadcrumb" aria-label="breadcrumb">
+                            <ul>
+                                <li><a href="#/">Collections</a></li>
+                                <li x-text="routeParams.collectionName"></li>
+                            </ul>
+                        </nav>
+
+                        <div class="page-header">
+                            <h2 x-text="routeParams.collectionName"></h2>
+                            <button class="outline secondary" @click="openCollectionModal(currentCollection)">
+                                Edit Collection
+                            </button>
+                        </div>
+
+                        <div class="table-actions">
+                            <button @click="handleCreateRecord()" class="outline">
+                                + New Record
+                            </button>
+                            <input
+                                type="search"
+                                placeholder="Filter records..."
+                                x-model="filterQuery"
+                                @input.debounce.300ms="loadRecords()"
+                            >
+                        </div>
+
+                        <div x-show="isLoading" class="empty-state">Loading...</div>
+
+                        <div x-show="!isLoading && records.length === 0" class="empty-state">
+                            <p>No records found.</p>
+                        </div>
+
+                        <!-- Bulk actions bar -->
+                        <div class="bulk-actions" x-show="selectedRecordIds.length > 0">
+                            <span class="bulk-actions-count" x-text="selectedRecordIds.length + ' selected'"></span>
+                            <button class="secondary outline" @click="clearSelection()">Clear selection</button>
+                            <button class="contrast" @click="handleBulkDelete()" :disabled="isLoading">
+                                Delete selected
+                            </button>
+                        </div>
+
+                        <div class="table-container" x-show="!isLoading && records.length > 0">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th style="width: 40px;">
+                                            <input
+                                                type="checkbox"
+                                                class="bulk-checkbox"
+                                                :checked="allRecordsSelected"
+                                                :indeterminate="someRecordsSelected"
+                                                @click="toggleSelectAll()"
+                                            >
+                                        </th>
+                                        <th class="sortable-th" @click="toggleSort('id')">
+                                            ID
+                                            <span class="sort-indicator" :class="{ active: sortField === 'id' }" x-text="getSortIndicator('id')"></span>
+                                        </th>
+                                        <template x-for="field in visibleFields" :key="field.name">
+                                            <th class="sortable-th" @click="toggleSort(field.name)">
+                                                <span x-text="field.name"></span>
+                                                <span class="sort-indicator" :class="{ active: sortField === field.name }" x-text="getSortIndicator(field.name)"></span>
+                                            </th>
+                                        </template>
+                                        <th class="sortable-th" @click="toggleSort('created_at')">
+                                            Created
+                                            <span class="sort-indicator" :class="{ active: sortField === 'created_at' }" x-text="getSortIndicator('created_at')"></span>
+                                        </th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template x-for="record in records" :key="record.id">
+                                        <tr :class="{ 'selected': isRecordSelected(record.id) }">
+                                            <td>
+                                                <input
+                                                    type="checkbox"
+                                                    class="bulk-checkbox"
+                                                    :checked="isRecordSelected(record.id)"
+                                                    @click="toggleRecordSelection(record.id)"
+                                                >
+                                            </td>
+                                            <td x-text="record.id"></td>
+                                            <template x-for="field in visibleFields" :key="field.name">
+                                                <td>
+                                                    <span
+                                                        class="truncate"
+                                                        x-text="formatFieldValue(record[field.name], field.type)"
+                                                    ></span>
+                                                </td>
+                                            </template>
+                                            <td x-text="formatDate(record.created_at)"></td>
+                                            <td class="record-actions">
+                                                <a :href="'#/records/' + routeParams.collectionName + '/' + record.id">
+                                                    Edit
+                                                </a>
+                                                <a
+                                                    href="#"
+                                                    @click.prevent="handleDeleteRecord(record.id)"
+                                                    style="color: var(--pico-del-color);"
+                                                >
+                                                    Delete
+                                                </a>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="pagination" x-show="records.length > 0">
+                            <span style="color: var(--pico-muted-color); font-size: 0.875rem;" x-text="totalItems + ' record' + (totalItems !== 1 ? 's' : '') + ' found'"></span>
+                            <div style="flex: 1;"></div>
+                            <template x-if="totalPages > 1">
+                                <div style="display: flex; align-items: center; gap: var(--spacing-md);">
+                                    <button
+                                        @click="handlePreviousPage()"
+                                        :disabled="currentPage <= 1"
+                                        class="outline"
+                                    >
+                                        Previous
+                                    </button>
+                                    <span x-text="'Page ' + currentPage + ' of ' + totalPages"></span>
+                                    <button
+                                        @click="handleNextPage()"
+                                        :disabled="currentPage >= totalPages"
+                                        class="outline"
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Record Editor -->
+                <template x-if="currentRoute === 'record'">
+                    <div>
+                        <nav class="breadcrumb" aria-label="breadcrumb">
+                            <ul>
+                                <li><a href="#/">Collections</a></li>
+                                <li>
+                                    <a
+                                        :href="'#/collections/' + routeParams.collectionName"
+                                        x-text="routeParams.collectionName"
+                                    ></a>
+                                </li>
+                                <li x-text="routeParams.recordId === 'new' ? 'New Record' : 'Record #' + routeParams.recordId"></li>
+                            </ul>
+                        </nav>
+
+                        <h2 class="page-title">
+                            <span x-text="routeParams.recordId === 'new' ? 'Create Record' : 'Edit Record'"></span>
+                        </h2>
+
+                        <div x-show="isLoading" class="empty-state">Loading...</div>
+
+                        <form x-show="!isLoading" @submit.prevent="handleSaveRecord()">
+                            <!-- Password fields for auth collections -->
+                            <template x-if="isAuthCollection">
+                                <div class="password-fields">
+                                    <div class="password-fields-header">
+                                        <svg viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                                        <strong>Password</strong>
+                                        <small style="color: var(--pico-muted-color);" x-text="routeParams.recordId === 'new' ? '(required)' : '(leave empty to keep current)'"></small>
+                                    </div>
+                                    <label>
+                                        New Password
+                                        <input
+                                            type="password"
+                                            x-model="passwordField"
+                                            :required="routeParams.recordId === 'new'"
+                                            placeholder="Enter password"
+                                            autocomplete="new-password"
+                                        >
+                                    </label>
+                                    <label>
+                                        Confirm Password
+                                        <input
+                                            type="password"
+                                            x-model="passwordConfirmField"
+                                            :required="routeParams.recordId === 'new'"
+                                            placeholder="Confirm password"
+                                            autocomplete="new-password"
+                                        >
+                                    </label>
+                                    <p x-show="!passwordsMatch" class="password-mismatch">⚠ Passwords do not match</p>
+                                </div>
+                            </template>
+
+                            <template x-for="field in editableFields" :key="field.name">
+                                <label>
+                                    <span class="field-label">
+                                        <span x-text="field.name"></span>
+                                        <span x-show="field.required" class="field-required">*</span>
+                                        <span class="field-type" x-text="'(' + field.type + ')'"></span>
+                                    </span>
+
+                                    <!-- Text input -->
+                                    <template x-if="isTextFieldType(field.type)">
+                                        <input
+                                            :type="getInputType(field.type)"
+                                            x-model="recordFormData[field.name]"
+                                            :required="field.required"
+                                        >
+                                    </template>
+
+                                    <!-- Number input -->
+                                    <template x-if="field.type === 'number'">
+                                        <input
+                                            type="number"
+                                            step="any"
+                                            x-model.number="recordFormData[field.name]"
+                                            :required="field.required"
+                                        >
+                                    </template>
+
+                                    <!-- Boolean -->
+                                    <template x-if="field.type === 'bool' || field.type === 'boolean'">
+                                        <input
+                                            type="checkbox"
+                                            x-model="recordFormData[field.name]"
+                                            role="switch"
+                                        >
+                                    </template>
+
+                                    <!-- Textarea for JSON/editor/text -->
+                                    <template x-if="isTextareaFieldType(field.type)">
+                                        <textarea
+                                            x-model="recordFormData[field.name]"
+                                            rows="4"
+                                        ></textarea>
+                                    </template>
+
+                                    <!-- Date -->
+                                    <template x-if="field.type === 'date'">
+                                        <input
+                                            type="datetime-local"
+                                            x-model="recordFormData[field.name]"
+                                            :required="field.required"
+                                        >
+                                    </template>
+
+                                    <!-- Select for select field -->
+                                    <template x-if="field.type === 'select'">
+                                        <select x-model="recordFormData[field.name]">
+                                            <option value="">-- Select --</option>
+                                            <template x-for="option in (field.options?.values || [])" :key="option">
+                                                <option :value="option" x-text="option"></option>
+                                            </template>
+                                        </select>
+                                    </template>
+
+                                    <!-- Relation picker -->
+                                    <template x-if="field.type === 'relation'">
+                                        <div class="relation-picker" x-data="relationPicker(field)">
+                                            <!-- Selected relation display -->
+                                            <template x-if="recordFormData[field.name] && selectedRecord">
+                                                <div class="relation-selected">
+                                                    <div class="relation-selected-info">
+                                                        <div x-text="getRecordDisplayName(selectedRecord)"></div>
+                                                        <div class="relation-selected-id">ID: <span x-text="selectedRecord.id"></span></div>
+                                                    </div>
+                                                    <button type="button" class="outline secondary" @click="clearSelection()">Clear</button>
+                                                </div>
+                                            </template>
+
+                                            <!-- Search input -->
+                                            <template x-if="!recordFormData[field.name] || !selectedRecord">
+                                                <div>
+                                                    <input
+                                                        type="text"
+                                                        class="relation-picker-input"
+                                                        x-model="searchQuery"
+                                                        @focus="openDropdown()"
+                                                        @input.debounce.300ms="searchRecords()"
+                                                        @keydown.escape="closeDropdown()"
+                                                        :placeholder="'Search ' + (field.options?.collection || 'related') + '...'"
+                                                    >
+
+                                                    <!-- Dropdown -->
+                                                    <div class="relation-picker-dropdown" x-show="isOpen" @click.outside="closeDropdown()">
+                                                        <template x-if="isLoading">
+                                                            <div class="relation-picker-loading">Loading...</div>
+                                                        </template>
+                                                        <template x-if="!isLoading && options.length === 0">
+                                                            <div class="relation-picker-empty">No records found</div>
+                                                        </template>
+                                                        <template x-for="option in options" :key="option.id">
+                                                            <div
+                                                                class="relation-picker-option"
+                                                                @click="selectOption(option)"
+                                                            >
+                                                                <div x-text="getRecordDisplayName(option)"></div>
+                                                                <div class="relation-picker-option-id">ID: <span x-text="option.id"></span></div>
+                                                            </div>
+                                                        </template>
+                                                    </div>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
+
+                                    <!-- File -->
+                                    <template x-if="field.type === 'file'">
+                                        <div class="file-field">
+                                            <!-- Existing file preview -->
+                                            <template x-if="getExistingFile(field.name) && !fileUploads[field.name]">
+                                                <div class="file-preview">
+                                                    <template x-if="isImageFile(getExistingFile(field.name))">
+                                                        <img
+                                                            class="file-preview-image"
+                                                            :src="getFileUrl(field.name)"
+                                                            :alt="getExistingFile(field.name).filename"
+                                                        >
+                                                    </template>
+                                                    <template x-if="!isImageFile(getExistingFile(field.name))">
+                                                        <div class="file-placeholder">
+                                                            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                                        </div>
+                                                    </template>
+                                                    <div class="file-preview-info">
+                                                        <div class="file-preview-name" x-text="getExistingFile(field.name).filename"></div>
+                                                        <div class="file-preview-meta" x-text="getExistingFile(field.name).mime_type"></div>
+                                                    </div>
+                                                    <div class="file-preview-actions">
+                                                        <a :href="getFileUrl(field.name)" target="_blank" class="outline">View</a>
+                                                        <button type="button" class="outline secondary" @click="clearExistingFile(field.name)">Remove</button>
+                                                    </div>
+                                                </div>
+                                            </template>
+
+                                            <!-- New file preview (pending upload) -->
+                                            <template x-if="fileUploads[field.name]">
+                                                <div class="file-preview">
+                                                    <template x-if="filePreviews[field.name]">
+                                                        <img
+                                                            class="file-preview-image"
+                                                            :src="filePreviews[field.name]"
+                                                            :alt="fileUploads[field.name].name"
+                                                        >
+                                                    </template>
+                                                    <template x-if="!filePreviews[field.name]">
+                                                        <div class="file-placeholder">
+                                                            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                                        </div>
+                                                    </template>
+                                                    <div class="file-preview-info">
+                                                        <div class="file-preview-name" x-text="fileUploads[field.name].name"></div>
+                                                        <div class="file-preview-meta" x-text="formatFileSize(fileUploads[field.name].size) + ' • New file'"></div>
+                                                    </div>
+                                                    <div class="file-preview-actions">
+                                                        <button type="button" class="outline secondary" @click="clearFileUpload(field.name)">Remove</button>
+                                                    </div>
+                                                </div>
+                                            </template>
+
+                                            <!-- File input -->
+                                            <input
+                                                type="file"
+                                                @change="handleFileSelect($event, field.name)"
+                                                :id="'file-' + field.name"
+                                            >
+                                        </div>
+                                    </template>
+                                </label>
+                            </template>
+
+                            <div class="form-actions">
+                                <button type="submit" :aria-busy="isLoading" :disabled="isLoading">
+                                    <span x-text="routeParams.recordId === 'new' ? 'Create' : 'Save'"></span>
+                                </button>
+                                <button
+                                    type="button"
+                                    class="outline secondary"
+                                    @click="navigateBack()"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+
+                            <p x-show="errorMessage" x-text="errorMessage" class="error-message"></p>
+                        </form>
+                    </div>
+                </template>
+
+                <!-- Settings Page -->
+                <template x-if="currentRoute === 'settings'">
+                    <div>
+                        <h2 class="page-title">Settings</h2>
+
+                        <div x-show="isLoading" class="empty-state">Loading...</div>
+
+                        <template x-if="!isLoading && settingsData">
+                            <div>
+                                <!-- Application Settings -->
+                                <div class="settings-section">
+                                    <h3>Application</h3>
+
+                                    <div class="settings-row">
+                                        <label>App Name</label>
+                                        <input type="text" x-model="settingsData.settings.app_name" @change="markSettingsChanged()">
+                                    </div>
+                                    <div class="settings-hint">Display name for your application</div>
+
+                                    <div class="settings-row">
+                                        <label>App URL</label>
+                                        <input type="url" x-model="settingsData.settings.app_url" @change="markSettingsChanged()" placeholder="https://example.com">
+                                    </div>
+                                    <div class="settings-hint">Public URL of your application (used in emails)</div>
+
+                                    <div class="settings-row">
+                                        <label>Sender Name</label>
+                                        <input type="text" x-model="settingsData.settings.sender_name" @change="markSettingsChanged()">
+                                    </div>
+
+                                    <div class="settings-row">
+                                        <label>Sender Email</label>
+                                        <input type="email" x-model="settingsData.settings.sender_email" @change="markSettingsChanged()" placeholder="noreply@example.com">
+                                    </div>
+
+                                    <div style="margin-top: var(--spacing-md);">
+                                        <button @click="handleSaveSettings()" :disabled="!settingsChanged || isLoading" :aria-busy="isLoading">
+                                            Save Settings
+                                        </button>
+                                        <span x-show="settingsSaved" style="color: var(--pico-ins-color); margin-left: var(--spacing-sm);">✓ Saved</span>
+                                    </div>
+                                </div>
+
+                                <!-- Storage Configuration (Read-only) -->
+                                <div class="settings-section">
+                                    <h3>Storage Configuration</h3>
+                                    <p style="color: var(--pico-muted-color); margin-bottom: var(--spacing-md);">
+                                        Storage is configured via environment variables and cannot be changed here.
+                                    </p>
+
+                                    <div class="storage-info">
+                                        <div class="storage-info-item">
+                                            <div class="storage-info-label">Backend</div>
+                                            <div class="storage-info-value" x-text="settingsData.storage.backend"></div>
+                                        </div>
+
+                                        <template x-if="settingsData.storage.backend === 'local'">
+                                            <div class="storage-info-item">
+                                                <div class="storage-info-label">Storage Path</div>
+                                                <div class="storage-info-value" x-text="settingsData.storage.storage_path"></div>
+                                            </div>
+                                        </template>
+
+                                        <template x-if="settingsData.storage.backend === 's3'">
+                                            <div class="storage-info-item">
+                                                <div class="storage-info-label">S3 Bucket</div>
+                                                <div class="storage-info-value" x-text="settingsData.storage.s3?.bucket || 'Not set'"></div>
+                                            </div>
+                                        </template>
+
+                                        <template x-if="settingsData.storage.backend === 's3'">
+                                            <div class="storage-info-item">
+                                                <div class="storage-info-label">S3 Region</div>
+                                                <div class="storage-info-value" x-text="settingsData.storage.s3?.region || 'Not set'"></div>
+                                            </div>
+                                        </template>
+
+                                        <template x-if="settingsData.storage.backend === 's3' && settingsData.storage.s3?.endpoint">
+                                            <div class="storage-info-item">
+                                                <div class="storage-info-label">S3 Endpoint</div>
+                                                <div class="storage-info-value" x-text="settingsData.storage.s3.endpoint"></div>
+                                            </div>
+                                        </template>
+
+                                        <template x-if="settingsData.storage.backend === 's3'">
+                                            <div class="storage-info-item">
+                                                <div class="storage-info-label">Credentials</div>
+                                                <div class="storage-info-value" x-text="settingsData.storage.s3?.access_key_set ? '✓ Configured' : '✗ Not set'"></div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+
+                                <p x-show="errorMessage" x-text="errorMessage" class="error-message"></p>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+
+                <!-- Logs Page -->
+                <template x-if="currentRoute === 'logs'">
+                    <div>
+                        <div class="page-header">
+                            <h2>Request Logs</h2>
+                            <button class="outline secondary" @click="handleClearLogs()" :disabled="isLoading">Clear Logs</button>
+                        </div>
+
+                        <!-- Stats -->
+                        <div class="logs-stats" x-show="logsStats">
+                            <div class="stat-card">
+                                <div class="stat-value" x-text="logsStats?.total_requests || 0"></div>
+                                <div class="stat-label">Requests (24h)</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" x-text="logsStats?.success_count || 0"></div>
+                                <div class="stat-label">Success</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" x-text="logsStats?.error_count || 0"></div>
+                                <div class="stat-label">Errors</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" x-text="(logsStats?.avg_duration_ms || 0) + 'ms'"></div>
+                                <div class="stat-label">Avg Duration</div>
+                            </div>
+                        </div>
+
+                        <!-- Filters -->
+                        <div class="logs-filters">
+                            <select x-model="logsFilter.status" @change="loadLogs()">
+                                <option value="">All Status</option>
+                                <option value="success">Success (2xx)</option>
+                                <option value="error">Errors (4xx/5xx)</option>
+                            </select>
+                            <select x-model="logsFilter.method" @change="loadLogs()">
+                                <option value="">All Methods</option>
+                                <option value="GET">GET</option>
+                                <option value="POST">POST</option>
+                                <option value="PATCH">PATCH</option>
+                                <option value="DELETE">DELETE</option>
+                            </select>
+                            <input
+                                type="search"
+                                placeholder="Filter by path..."
+                                x-model="logsFilter.path"
+                                @input.debounce.300ms="loadLogs()"
+                                style="width: 200px;"
+                            >
+                            <button class="outline" @click="loadLogs()">Refresh</button>
+                        </div>
+
+                        <div x-show="isLoading" class="empty-state">Loading...</div>
+
+                        <div x-show="!isLoading && logsData.items.length === 0" class="empty-state">
+                            <p>No logs found.</p>
+                        </div>
+
+                        <div class="table-container" x-show="!isLoading && logsData.items.length > 0">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Time</th>
+                                        <th>Method</th>
+                                        <th>Path</th>
+                                        <th>Status</th>
+                                        <th>Duration</th>
+                                        <th>IP</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template x-for="log in logsData.items" :key="log.id">
+                                        <tr>
+                                            <td x-text="formatDate(log.created_at)"></td>
+                                            <td><span class="log-method" x-text="log.method"></span></td>
+                                            <td><span class="log-path" x-text="log.path" :title="log.path"></span></td>
+                                            <td>
+                                                <span
+                                                    class="log-status"
+                                                    :class="getStatusClass(log.status)"
+                                                    x-text="log.status"
+                                                ></span>
+                                            </td>
+                                            <td class="log-duration" x-text="log.duration_ms + 'ms'"></td>
+                                            <td style="font-size: 0.75rem; color: var(--pico-muted-color);" x-text="log.ip || '-'"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Pagination -->
+                        <div class="pagination" x-show="logsData.items.length > 0">
+                            <span style="color: var(--pico-muted-color); font-size: 0.875rem;" x-text="logsData.totalItems + ' logs'"></span>
+                            <div style="flex: 1;"></div>
+                            <template x-if="logsData.totalPages > 1">
+                                <div style="display: flex; align-items: center; gap: var(--spacing-md);">
+                                    <button
+                                        @click="logsPage--; loadLogs()"
+                                        :disabled="logsPage <= 1"
+                                        class="outline"
+                                        style="width: auto; margin: 0; padding: 4px 12px;"
+                                    >
+                                        ← Prev
+                                    </button>
+                                    <span x-text="logsPage + ' / ' + logsData.totalPages"></span>
+                                    <button
+                                        @click="logsPage++; loadLogs()"
+                                        :disabled="logsPage >= logsData.totalPages"
+                                        class="outline"
+                                        style="width: auto; margin: 0; padding: 4px 12px;"
+                                    >
+                                        Next →
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+
+                        <p x-show="errorMessage" x-text="errorMessage" class="error-message"></p>
+                    </div>
+                </template>
+
+            </main>
+
+            <!-- Collection Editor Modal -->
+            <template x-if="showCollectionModal">
+                <div class="modal-backdrop" @click.self="closeCollectionModal()">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3 x-text="editingCollection ? 'Edit Collection' : 'New Collection'"></h3>
+                            <button class="outline secondary" @click="closeCollectionModal()" style="width: auto; margin: 0; padding: 4px 12px;">✕</button>
+                        </div>
+                        <div class="modal-body">
+                            <!-- Tabs -->
+                            <div class="tabs">
+                                <div class="tab" :class="{ active: collectionModalTab === 'fields' }" @click="collectionModalTab = 'fields'">Fields</div>
+                                <div class="tab" :class="{ active: collectionModalTab === 'rules' }" @click="collectionModalTab = 'rules'">API Rules</div>
+                            </div>
+
+                            <!-- Fields Tab -->
+                            <div x-show="collectionModalTab === 'fields'">
+                                <!-- Collection Name -->
+                                <label>
+                                    Name
+                                    <input
+                                        type="text"
+                                        x-model="collectionForm.name"
+                                        placeholder="e.g. posts, products, users"
+                                        :disabled="editingCollection"
+                                        required
+                                    >
+                                </label>
+
+                                <!-- Collection Type -->
+                                <label style="margin-bottom: var(--spacing-sm);">Type</label>
+                                <div class="type-selector">
+                                    <div
+                                        class="type-option"
+                                        :class="{ selected: collectionForm.type === 'base' }"
+                                        @click="collectionForm.type = 'base'"
+                                    >
+                                        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+                                        <div><strong>Base</strong></div>
+                                        <small>Standard data collection</small>
+                                    </div>
+                                    <div
+                                        class="type-option"
+                                        :class="{ selected: collectionForm.type === 'auth' }"
+                                        @click="collectionForm.type = 'auth'"
+                                    >
+                                        <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                        <div><strong>Auth</strong></div>
+                                        <small>Users with login</small>
+                                    </div>
+                                </div>
+
+                                <!-- Fields List -->
+                                <label>Fields</label>
+                                <div class="field-list">
+                                    <!-- System fields (read-only) -->
+                                    <div class="field-item" style="opacity: 0.6;">
+                                        <div class="field-item-icon" x-html="getFieldIcon('id')"></div>
+                                        <span class="field-item-name">id</span>
+                                        <span class="field-item-type">auto</span>
+                                        <span style="font-size: 0.75rem; color: var(--pico-muted-color);">system</span>
+                                    </div>
+
+                                    <!-- User-defined fields -->
+                                    <template x-for="(field, index) in collectionForm.fields" :key="index">
+                                        <div class="field-item">
+                                            <div class="field-item-icon" x-html="getFieldIcon(field.type)"></div>
+                                            <input
+                                                type="text"
+                                                x-model="field.name"
+                                                placeholder="Field name"
+                                                style="margin: 0; padding: 4px 8px; flex: 1;"
+                                            >
+                                            <span class="field-item-type" x-text="field.type"></span>
+                                            <label style="margin: 0; display: flex; align-items: center; gap: 4px;">
+                                                <input type="checkbox" x-model="field.required" style="margin: 0;">
+                                                <small>Required</small>
+                                            </label>
+                                            <div class="field-item-actions">
+                                                <button class="outline secondary" @click="removeField(index)">✕</button>
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <!-- System fields (read-only) -->
+                                    <div class="field-item" style="opacity: 0.6;">
+                                        <div class="field-item-icon" x-html="getFieldIcon('date')"></div>
+                                        <span class="field-item-name">created_at</span>
+                                        <span class="field-item-type">auto</span>
+                                        <span style="font-size: 0.75rem; color: var(--pico-muted-color);">system</span>
+                                    </div>
+                                    <div class="field-item" style="opacity: 0.6;">
+                                        <div class="field-item-icon" x-html="getFieldIcon('date')"></div>
+                                        <span class="field-item-name">updated_at</span>
+                                        <span class="field-item-type">auto</span>
+                                        <span style="font-size: 0.75rem; color: var(--pico-muted-color);">system</span>
+                                    </div>
+                                </div>
+
+                                <!-- Add Field Button + Type Picker -->
+                                <div x-show="!showFieldTypePicker">
+                                    <button class="outline" @click="showFieldTypePicker = true" style="width: 100%;">+ New Field</button>
+                                </div>
+
+                                <div x-show="showFieldTypePicker">
+                                    <label>Select field type</label>
+                                    <div class="field-type-grid">
+                                        <template x-for="fieldType in availableFieldTypes" :key="fieldType.type">
+                                            <div class="field-type-btn" @click="addField(fieldType.type)">
+                                                <div x-html="fieldType.icon"></div>
+                                                <span x-text="fieldType.label"></span>
+                                            </div>
+                                        </template>
+                                    </div>
+                                    <button class="outline secondary" @click="showFieldTypePicker = false" style="width: 100%;">Cancel</button>
+                                </div>
+                            </div>
+
+                            <!-- API Rules Tab -->
+                            <div x-show="collectionModalTab === 'rules'">
+                                <p style="font-size: 0.875rem; color: var(--pico-muted-color); margin-bottom: var(--spacing-md);">
+                                    Control who can access this collection. Leave empty for public access, or use filter expressions.
+                                </p>
+
+                                <label>
+                                    List Rule
+                                    <input type="text" x-model="collectionForm.listRule" placeholder='e.g. @request.auth.id != ""'>
+                                    <small class="rule-help">Who can list records. Empty = public, null = superuser only.</small>
+                                </label>
+
+                                <label>
+                                    View Rule
+                                    <input type="text" x-model="collectionForm.viewRule" placeholder='e.g. @request.auth.id != ""'>
+                                    <small class="rule-help">Who can view a single record.</small>
+                                </label>
+
+                                <label>
+                                    Create Rule
+                                    <input type="text" x-model="collectionForm.createRule" placeholder='e.g. @request.auth.id != ""'>
+                                    <small class="rule-help">Who can create records.</small>
+                                </label>
+
+                                <label>
+                                    Update Rule
+                                    <input type="text" x-model="collectionForm.updateRule" placeholder='e.g. author = @request.auth.id'>
+                                    <small class="rule-help">Who can update records.</small>
+                                </label>
+
+                                <label>
+                                    Delete Rule
+                                    <input type="text" x-model="collectionForm.deleteRule" placeholder='e.g. author = @request.auth.id'>
+                                    <small class="rule-help">Who can delete records.</small>
+                                </label>
+
+                                <details style="margin-top: var(--spacing-md);">
+                                    <summary>Rule syntax examples</summary>
+                                    <ul style="font-size: 0.875rem;">
+                                        <li><code>@request.auth.id != ""</code> — Authenticated users</li>
+                                        <li><code>author = @request.auth.id</code> — Owner only</li>
+                                        <li><code>status = "published"</code> — Filter by field</li>
+                                        <li><code>@request.auth.role = "admin"</code> — Role-based</li>
+                                    </ul>
+                                </details>
+                            </div>
+
+                            <p x-show="collectionModalError" x-text="collectionModalError" class="error-message"></p>
+                        </div>
+                        <div class="modal-footer">
+                            <template x-if="editingCollection">
+                                <button class="secondary outline" @click="handleDeleteCollection()" style="margin-right: auto;">Delete</button>
+                            </template>
+                            <button class="outline secondary" @click="closeCollectionModal()">Cancel</button>
+                            <button @click="handleSaveCollection()" :aria-busy="isLoading" :disabled="isLoading">
+                                <span x-text="editingCollection ? 'Save Changes' : 'Create Collection'"></span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </template>
+
+    <script src="https://unpkg.com/alpinejs@3/dist/cdn.min.js" defer></script>
+    <script src="/_/admin.js"></script>
+</body>
+</html>

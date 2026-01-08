@@ -11,6 +11,9 @@ local oauth = require("motebase.oauth")
 local jwt = require("motebase.jwt")
 local url_util = require("motebase.utils.url")
 local cjson = require("cjson")
+local admin = require("motebase.admin")
+local settings = require("motebase.settings")
+local logs = require("motebase.logs")
 
 local motebase = {}
 
@@ -119,7 +122,9 @@ local function handle_create_collection(ctx)
         deleteRule = normalize_null(ctx.body.deleteRule),
     }
 
-    local ok, err = collections.create(name, col_schema, col_rules)
+    local col_type = ctx.body.type
+
+    local ok, err = collections.create(name, col_schema, col_rules, col_type)
     if not ok then
         server.error(ctx, 400, err)
         return
@@ -138,6 +143,7 @@ local function handle_update_collection(ctx)
     local name = ctx.params.name
 
     local updates = {
+        schema = ctx.body.schema,
         listRule = ctx.body.listRule,
         viewRule = ctx.body.viewRule,
         createRule = ctx.body.createRule,
@@ -147,7 +153,7 @@ local function handle_update_collection(ctx)
 
     local collection, err = collections.update(name, updates)
     if not collection then
-        server.error(ctx, 404, err)
+        server.error(ctx, 400, err)
         return
     end
 
@@ -633,6 +639,87 @@ local function handle_file_download(ctx)
     server.file(ctx, 200, data, filename, mime_type)
 end
 
+-- settings handlers --
+
+local function handle_get_settings(ctx)
+    if not ctx.user or not auth.is_superuser(ctx.user) then
+        server.error(ctx, 403, "superuser required")
+        return
+    end
+
+    local all_settings = settings.get_all()
+    local storage_config = settings.get_storage_config()
+
+    server.json(ctx, 200, {
+        settings = all_settings,
+        storage = storage_config,
+    })
+end
+
+local function handle_update_settings(ctx)
+    if not ctx.user or not auth.is_superuser(ctx.user) then
+        server.error(ctx, 403, "superuser required")
+        return
+    end
+
+    if not ctx.body or type(ctx.body) ~= "table" then
+        server.error(ctx, 400, "invalid request body")
+        return
+    end
+
+    local updated, err = settings.update(ctx.body)
+    if not updated then
+        server.error(ctx, 400, err)
+        return
+    end
+
+    server.json(ctx, 200, { settings = updated })
+end
+
+-- logs handlers --
+
+local function handle_get_logs(ctx)
+    if not ctx.user or not auth.is_superuser(ctx.user) then
+        server.error(ctx, 403, "superuser required")
+        return
+    end
+
+    local query = url_util.parse_query(ctx.query_string)
+
+    local result = logs.list({
+        page = tonumber(query.page) or 1,
+        per_page = tonumber(query.perPage) or 50,
+        status = query.status,
+        method = query.method,
+        path = query.path,
+        user_id = query.user_id,
+        from = query.from and tonumber(query.from),
+        to = query.to and tonumber(query.to),
+    })
+
+    server.json(ctx, 200, result)
+end
+
+local function handle_get_logs_stats(ctx)
+    if not ctx.user or not auth.is_superuser(ctx.user) then
+        server.error(ctx, 403, "superuser required")
+        return
+    end
+
+    local stats = logs.get_stats()
+    server.json(ctx, 200, stats)
+end
+
+local function handle_clear_logs(ctx)
+    if not ctx.user or not auth.is_superuser(ctx.user) then
+        server.error(ctx, 403, "superuser required")
+        return
+    end
+
+    logs.clear()
+    server.json(ctx, 200, { cleared = true })
+end
+
 -- routes --
 
 local function setup_routes()
@@ -665,6 +752,15 @@ local function setup_routes()
 
     router.get("/api/realtime", handle_realtime_connect)
     router.post("/api/realtime", handle_realtime_subscribe)
+
+    router.get("/api/settings", handle_get_settings)
+    router.patch("/api/settings", handle_update_settings)
+
+    router.get("/api/logs", handle_get_logs)
+    router.get("/api/logs/stats", handle_get_logs_stats)
+    router.delete("/api/logs", handle_clear_logs)
+
+    admin.register_routes(router)
 end
 
 -- public api --
@@ -703,6 +799,18 @@ function motebase.start(config)
     })
     local files_ok, files_err = files.init()
     if not files_ok then return nil, files_err end
+
+    local admin_ok, admin_err = admin.init()
+    if not admin_ok then return nil, admin_err end
+
+    local settings_ok, settings_err = settings.init()
+    if not settings_ok then return nil, settings_err end
+
+    local logs_ok, logs_err = logs.init()
+    if not logs_ok then return nil, logs_err end
+
+    -- Configure logs if disabled via env
+    if os.getenv("MOTEBASE_REQUEST_LOGS") == "0" then logs.configure({ enabled = false }) end
 
     local ratelimit_val = config.ratelimit or tonumber(os.getenv("MOTEBASE_RATELIMIT"))
     if ratelimit_val then ratelimit.set_global_limit(ratelimit_val) end

@@ -52,6 +52,7 @@ jobs:
           output: motebase-bin
           targets: linux-x86_64 linux-arm64 darwin-x86_64 darwin-arm64
           lua-version: jit
+          embeds: motebase/admin/admin.html motebase/admin/admin.css motebase/admin/admin.js
       - uses: actions/upload-artifact@v4
         with:
           name: binaries

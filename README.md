@@ -127,6 +127,7 @@ luajit ./bin/motebase.lua
 | `MOTEBASE_RATELIMIT` | Requests per minute (0 to disable) |
 | `MOTEBASE_MAX_CONNECTIONS` | Max concurrent connections |
 | `MOTEBASE_LOG` | Enable logging (`0` to disable) |
+| `MOTEBASE_DEV` | Dev mode - reload admin UI files on each request (`1` to enable) |
 
 #### SMTP (Email)
 

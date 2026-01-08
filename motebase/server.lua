@@ -6,6 +6,15 @@ local log = require("motebase.utils.log")
 local http_parser = require("motebase.parser.http")
 local ratelimit = require("motebase.ratelimit")
 
+local logs_module = nil
+local function get_logs()
+    if logs_module == nil then
+        local ok, mod = pcall(require, "motebase.logs")
+        logs_module = ok and mod or false
+    end
+    return logs_module
+end
+
 local server = {}
 
 -- IANA HTTP Status Codes (http://www.iana.org/assignments/http-status-codes)
@@ -229,6 +238,25 @@ local function send_sse_headers(wrapper, status, headers)
     return send_all(wrapper, response)
 end
 
+local function record_request_log(method, path, status, start_time, wrapper, headers, user_id)
+    local logs = get_logs()
+    if not logs or not logs.is_enabled() then return end
+
+    local duration_ms = math.floor((socket.gettime() - start_time) * 1000)
+
+    pcall(function()
+        logs.record({
+            method = method,
+            path = path,
+            status = status,
+            duration_ms = duration_ms,
+            ip = wrapper.ip,
+            user_id = user_id,
+            user_agent = headers and headers["user-agent"],
+        })
+    end)
+end
+
 -- request --
 
 local function create_context(method, path, headers, body, config)
@@ -261,6 +289,7 @@ end
 
 local function handle_request(wrapper, config)
     wrapper.request_count = wrapper.request_count + 1
+    local start_time = socket.gettime()
 
     local line, err = receive_line(wrapper)
     if err then return false, false, err end
@@ -293,6 +322,7 @@ local function handle_request(wrapper, config)
         cors["Content-Length"] = "0"
         send_response(wrapper, 204, cors, nil, keep_alive)
         log.info("http", req.method .. " " .. path .. " 204")
+        record_request_log(req.method, path, 204, start_time, wrapper, headers, nil)
         return true, keep_alive, nil
     end
 
@@ -302,6 +332,7 @@ local function handle_request(wrapper, config)
         cors["Retry-After"] = "60"
         send_response(wrapper, 429, cors, middleware.encode_json({ error = "too many requests" }), keep_alive)
         log.info("http", req.method .. " " .. path .. " 429")
+        record_request_log(req.method, path, 429, start_time, wrapper, headers, nil)
         return true, keep_alive, nil
     end
 
@@ -310,6 +341,7 @@ local function handle_request(wrapper, config)
         local cors = middleware.cors_headers()
         cors["Content-Type"] = "application/json"
         send_response(wrapper, 400, cors, middleware.encode_json({ error = parse_err }), keep_alive)
+        record_request_log(req.method, path, 400, start_time, wrapper, headers, nil)
         return true, keep_alive, nil
     end
 
@@ -331,6 +363,7 @@ local function handle_request(wrapper, config)
         cors["Content-Type"] = "application/json"
         send_response(wrapper, 404, cors, middleware.encode_json({ error = "not found" }), keep_alive)
         log.info("http", req.method .. " " .. path .. " 404")
+        record_request_log(req.method, path, 404, start_time, wrapper, headers, ctx.user and ctx.user.sub)
         return true, keep_alive, nil
     end
 
@@ -342,6 +375,7 @@ local function handle_request(wrapper, config)
         local cors = middleware.cors_headers()
         cors["Content-Type"] = "application/json"
         send_response(wrapper, 500, cors, middleware.encode_json({ error = "internal server error" }), false)
+        record_request_log(req.method, path, 500, start_time, wrapper, headers, ctx.user and ctx.user.sub)
         return true, false, nil
     end
 
@@ -354,11 +388,13 @@ local function handle_request(wrapper, config)
     if ctx._sse_mode and ctx._sse_client then
         send_sse_headers(wrapper, status, resp_headers)
         log.info("http", req.method .. " " .. path .. " " .. status .. " (SSE)")
+        record_request_log(req.method, path, status, start_time, wrapper, headers, ctx.user and ctx.user.sub)
         return true, false, nil, ctx._sse_client
     end
 
     send_response(wrapper, status, resp_headers, ctx._response_body, keep_alive)
     log.info("http", req.method .. " " .. path .. " " .. status)
+    record_request_log(req.method, path, status, start_time, wrapper, headers, ctx.user and ctx.user.sub)
     return true, keep_alive, nil
 end
 
@@ -594,6 +630,12 @@ end
 
 function server.error(ctx, status, message)
     server.json(ctx, status, { error = message })
+end
+
+function server.html(ctx, status, content)
+    ctx._status = status
+    ctx._response_headers["Content-Type"] = "text/html; charset=utf-8"
+    ctx._response_body = content
 end
 
 function server.file(ctx, status, data, filename, mime_type)

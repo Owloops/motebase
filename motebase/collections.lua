@@ -26,6 +26,7 @@ function collections.init()
         CREATE TABLE IF NOT EXISTS _collections (
             name TEXT PRIMARY KEY,
             schema TEXT NOT NULL,
+            type TEXT DEFAULT 'base',
             listRule TEXT,
             viewRule TEXT,
             createRule TEXT,
@@ -36,7 +37,7 @@ function collections.init()
     ]])
 end
 
-function collections.create(name, fields, rules)
+function collections.create(name, fields, rules, collection_type)
     if not name:match("^[a-z_][a-z0-9_]*$") then return nil, "invalid collection name" end
 
     if name:sub(1, 1) == "_" then return nil, "collection name cannot start with underscore" end
@@ -44,12 +45,23 @@ function collections.create(name, fields, rules)
     local existing = db.query("SELECT name FROM _collections WHERE name = ?", { name })
     if existing and #existing > 0 then return nil, "collection already exists" end
 
+    collection_type = collection_type or "base"
+    if collection_type ~= "base" and collection_type ~= "auth" then
+        return nil, "invalid collection type (must be 'base' or 'auth')"
+    end
+
+    -- Auth collections require email field
+    if collection_type == "auth" then fields.email = fields.email or { type = "email", required = true } end
+
     local columns = { "id INTEGER PRIMARY KEY AUTOINCREMENT" }
     for field_name, def in pairs(fields) do
         local sql_type = schema.field_to_sql_type(def.type or "string")
         local nullable = def.required and " NOT NULL" or ""
         columns[#columns + 1] = field_name .. " " .. sql_type .. nullable
     end
+
+    if collection_type == "auth" then columns[#columns + 1] = "password_hash TEXT" end
+
     columns[#columns + 1] = "created_at INTEGER DEFAULT (strftime('%s', 'now'))"
     columns[#columns + 1] = "updated_at INTEGER DEFAULT (strftime('%s', 'now'))"
 
@@ -59,10 +71,11 @@ function collections.create(name, fields, rules)
 
     rules = rules or {}
     local _, insert_err = db.insert(
-        "INSERT INTO _collections (name, schema, listRule, viewRule, createRule, updateRule, deleteRule) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO _collections (name, schema, type, listRule, viewRule, createRule, updateRule, deleteRule) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         {
             name,
             cjson.encode(fields),
+            collection_type,
             rules.listRule,
             rules.viewRule,
             rules.createRule,
@@ -78,7 +91,7 @@ end
 
 function collections.list()
     local rows = db.query(
-        "SELECT name, schema, listRule, viewRule, createRule, updateRule, deleteRule, created_at FROM _collections ORDER BY name"
+        "SELECT name, schema, type, listRule, viewRule, createRule, updateRule, deleteRule, created_at FROM _collections ORDER BY name"
     )
     if not rows then return nil end
     for i = 1, #rows do
@@ -91,7 +104,7 @@ function collections.get(name)
     if schema_cache[name] then return schema_cache[name] end
 
     local rows = db.query(
-        "SELECT name, schema, listRule, viewRule, createRule, updateRule, deleteRule, created_at FROM _collections WHERE name = ?",
+        "SELECT name, schema, type, listRule, viewRule, createRule, updateRule, deleteRule, created_at FROM _collections WHERE name = ?",
         { name }
     )
     if not rows or #rows == 0 then return nil end
@@ -118,6 +131,23 @@ function collections.update(name, updates)
                 values[#values + 1] = updates[field]
             end
         end
+    end
+
+    if updates.schema then
+        local current_schema = collection.schema or {}
+        local new_schema = updates.schema
+
+        for field_name, def in pairs(new_schema) do
+            if not current_schema[field_name] then
+                local sql_type = schema.field_to_sql_type(def.type or "string")
+                local alter_sql = "ALTER TABLE " .. name .. " ADD COLUMN " .. field_name .. " " .. sql_type
+                local ok, err = db.exec(alter_sql)
+                if not ok then return nil, "failed to add column " .. field_name .. ": " .. (err or "unknown error") end
+            end
+        end
+
+        sets[#sets + 1] = "schema = ?"
+        values[#values + 1] = cjson.encode(new_schema)
     end
 
     if #sets == 0 then return collection end
@@ -246,13 +276,18 @@ function collections.create_record(name, data, multipart_parts, _ctx)
         end
     end
 
-    local sql = "INSERT INTO "
-        .. name
-        .. " ("
-        .. table.concat(insert_fields, ", ")
-        .. ") VALUES ("
-        .. table.concat(placeholders, ", ")
-        .. ")"
+    local sql
+    if #insert_fields > 0 then
+        sql = "INSERT INTO "
+            .. name
+            .. " ("
+            .. table.concat(insert_fields, ", ")
+            .. ") VALUES ("
+            .. table.concat(placeholders, ", ")
+            .. ")"
+    else
+        sql = "INSERT INTO " .. name .. " DEFAULT VALUES"
+    end
     local id, err = db.insert(sql, insert_values)
     if not id then return nil, err end
 

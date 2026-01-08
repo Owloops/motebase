@@ -81,10 +81,18 @@ build = {
         ["motebase.mail"] = "motebase/mail.lua",
         ["motebase.oauth"] = "motebase/oauth.lua",
         ["motebase.hooks"] = "motebase/hooks.lua",
+        ["motebase.admin"] = "motebase/admin/init.lua",
+        ["motebase.logs"] = "motebase/logs.lua",
+        ["motebase.settings"] = "motebase/settings.lua",
+        ["motebase.s3"] = "motebase/s3.lua",
+        ["motebase.storage.s3"] = "motebase/storage/s3.lua",
     },
     install = {
         bin = {
             ["motebase"] = "bin/motebase.lua",
         },
+    },
+    copy_directories = {
+        "motebase/admin",
     },
 }

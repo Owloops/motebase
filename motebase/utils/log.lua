@@ -21,11 +21,16 @@ function module.disable()
     enabled = false
 end
 
+local function format_value(v)
+    if type(v) == "number" and v == math.floor(v) then return string.format("%d", v) end
+    return tostring(v)
+end
+
 local function format_context(context)
     if not context then return "" end
     local parts = {}
     for k, v in pairs(context) do
-        parts[#parts + 1] = k .. "=" .. tostring(v)
+        parts[#parts + 1] = k .. "=" .. format_value(v)
     end
     if #parts == 0 then return "" end
     return " (" .. table.concat(parts, ", ") .. ")"
