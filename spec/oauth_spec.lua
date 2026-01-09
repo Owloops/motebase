@@ -55,7 +55,7 @@ describe("oauth", function()
     describe("configuration", function()
         it("accepts provider credentials", function()
             oauth.configure({
-                redirect_url = "http://localhost:8080/api/auth/oauth",
+                redirect_url = "http://localhost:8097/api/auth/oauth",
                 google_id = "test-google-id",
                 google_secret = "test-google-secret",
             })
@@ -76,7 +76,7 @@ describe("oauth", function()
 
         it("generates auth url with state", function()
             oauth.configure({
-                redirect_url = "http://localhost:8080/api/auth/oauth",
+                redirect_url = "http://localhost:8097/api/auth/oauth",
                 google_id = "test-google-id",
                 google_secret = "test-google-secret",
             })

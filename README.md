@@ -105,7 +105,7 @@ luajit ./bin/motebase.lua
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `-p, --port` | Port to listen on | `8080` |
+| `-p, --port` | Port to listen on | `8097` |
 | `-h, --host` | Host to bind to | `0.0.0.0` |
 | `-d, --db` | Database file path | `motebase.db` |
 | `-s, --secret` | JWT secret key | `change-me-in-production` |
@@ -202,38 +202,38 @@ MOTEBASE_S3_USE_SSL=false \
 
 ```bash
 # Create collection with schema
-curl -X POST http://localhost:8080/api/collections \
+curl -X POST http://localhost:8097/api/collections \
   -H "Content-Type: application/json" \
   -d '{"name":"posts","schema":{"title":{"type":"string","required":true},"body":{"type":"text"}}}'
 
 # List collections
-curl http://localhost:8080/api/collections
+curl http://localhost:8097/api/collections
 
 # Delete collection
-curl -X DELETE http://localhost:8080/api/collections/posts
+curl -X DELETE http://localhost:8097/api/collections/posts
 ```
 
 ### Records
 
 ```bash
 # Create record
-curl -X POST http://localhost:8080/api/collections/posts/records \
+curl -X POST http://localhost:8097/api/collections/posts/records \
   -H "Content-Type: application/json" \
   -d '{"title":"Hello World","body":"My first post"}'
 
 # List records
-curl http://localhost:8080/api/collections/posts/records
+curl http://localhost:8097/api/collections/posts/records
 
 # Get record
-curl http://localhost:8080/api/collections/posts/records/1
+curl http://localhost:8097/api/collections/posts/records/1
 
 # Update record
-curl -X PATCH http://localhost:8080/api/collections/posts/records/1 \
+curl -X PATCH http://localhost:8097/api/collections/posts/records/1 \
   -H "Content-Type: application/json" \
   -d '{"title":"Updated Title"}'
 
 # Delete record
-curl -X DELETE http://localhost:8080/api/collections/posts/records/1
+curl -X DELETE http://localhost:8097/api/collections/posts/records/1
 ```
 
 ### Query & Filter
@@ -242,25 +242,25 @@ List records with filtering, sorting, pagination, and field selection:
 
 ```bash
 # Filter records (PocketBase-compatible syntax)
-curl "http://localhost:8080/api/collections/posts/records?filter=status='published'"
+curl "http://localhost:8097/api/collections/posts/records?filter=status='published'"
 
 # Multiple conditions
-curl "http://localhost:8080/api/collections/posts/records?filter=status='published'%20%26%26%20views>100"
+curl "http://localhost:8097/api/collections/posts/records?filter=status='published'%20%26%26%20views>100"
 
 # Sort (- for descending)
-curl "http://localhost:8080/api/collections/posts/records?sort=-created_at,title"
+curl "http://localhost:8097/api/collections/posts/records?sort=-created_at,title"
 
 # Pagination
-curl "http://localhost:8080/api/collections/posts/records?page=2&perPage=10"
+curl "http://localhost:8097/api/collections/posts/records?page=2&perPage=10"
 
 # Select fields
-curl "http://localhost:8080/api/collections/posts/records?fields=id,title,status"
+curl "http://localhost:8097/api/collections/posts/records?fields=id,title,status"
 
 # Combined
-curl "http://localhost:8080/api/collections/posts/records?filter=status='published'&sort=-views&page=1&perPage=10&fields=id,title"
+curl "http://localhost:8097/api/collections/posts/records?filter=status='published'&sort=-views&page=1&perPage=10&fields=id,title"
 
 # Skip total count (faster for large datasets)
-curl "http://localhost:8080/api/collections/posts/records?skipTotal=true"
+curl "http://localhost:8097/api/collections/posts/records?skipTotal=true"
 ```
 
 #### Filter Operators
@@ -299,22 +299,22 @@ Link records between collections using relation fields:
 
 ```bash
 # Create users collection
-curl -X POST http://localhost:8080/api/collections \
+curl -X POST http://localhost:8097/api/collections \
   -H "Content-Type: application/json" \
   -d '{"name":"users","schema":{"name":{"type":"string","required":true}}}'
 
 # Create posts collection with author relation
-curl -X POST http://localhost:8080/api/collections \
+curl -X POST http://localhost:8097/api/collections \
   -H "Content-Type: application/json" \
   -d '{"name":"posts","schema":{"title":{"type":"string","required":true},"author":{"type":"relation","collection":"users"}}}'
 
 # Create user
-curl -X POST http://localhost:8080/api/collections/users/records \
+curl -X POST http://localhost:8097/api/collections/users/records \
   -H "Content-Type: application/json" \
   -d '{"name":"Alice"}'
 
 # Create post with relation
-curl -X POST http://localhost:8080/api/collections/posts/records \
+curl -X POST http://localhost:8097/api/collections/posts/records \
   -H "Content-Type: application/json" \
   -d '{"title":"Hello World","author":1}'
 ```
@@ -325,17 +325,17 @@ Store arrays of references using `multiple: true`:
 
 ```bash
 # Create tags collection
-curl -X POST http://localhost:8080/api/collections \
+curl -X POST http://localhost:8097/api/collections \
   -H "Content-Type: application/json" \
   -d '{"name":"tags","schema":{"name":{"type":"string","required":true}}}'
 
 # Create articles with multiple tags
-curl -X POST http://localhost:8080/api/collections \
+curl -X POST http://localhost:8097/api/collections \
   -H "Content-Type: application/json" \
   -d '{"name":"articles","schema":{"title":{"type":"string"},"tags":{"type":"relation","collection":"tags","multiple":true}}}'
 
 # Create article with tag IDs
-curl -X POST http://localhost:8080/api/collections/articles/records \
+curl -X POST http://localhost:8097/api/collections/articles/records \
   -H "Content-Type: application/json" \
   -d '{"title":"My Article","tags":[1,2,3]}'
 ```
@@ -346,19 +346,19 @@ Fetch related records inline using `?expand=`:
 
 ```bash
 # Expand single relation
-curl "http://localhost:8080/api/collections/posts/records?expand=author"
+curl "http://localhost:8097/api/collections/posts/records?expand=author"
 
 # Expand multiple fields
-curl "http://localhost:8080/api/collections/articles/records?expand=author,tags"
+curl "http://localhost:8097/api/collections/articles/records?expand=author,tags"
 
 # Nested expand
-curl "http://localhost:8080/api/collections/posts/records?expand=author.company"
+curl "http://localhost:8097/api/collections/posts/records?expand=author.company"
 
 # Back-relation (get posts by user)
-curl "http://localhost:8080/api/collections/users/records?expand=posts_via_author"
+curl "http://localhost:8097/api/collections/users/records?expand=posts_via_author"
 
 # Single record with expand
-curl "http://localhost:8080/api/collections/posts/records/1?expand=author"
+curl "http://localhost:8097/api/collections/posts/records/1?expand=author"
 ```
 
 #### Expand Response
@@ -390,17 +390,17 @@ curl "http://localhost:8080/api/collections/posts/records/1?expand=author"
 
 ```bash
 # Register
-curl -X POST http://localhost:8080/api/auth/register \
+curl -X POST http://localhost:8097/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com","password":"password123"}'
 
 # Login (returns JWT token)
-curl -X POST http://localhost:8080/api/auth/login \
+curl -X POST http://localhost:8097/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com","password":"password123"}'
 
 # Get current user
-curl http://localhost:8080/api/auth/me \
+curl http://localhost:8097/api/auth/me \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -410,12 +410,12 @@ Requires SMTP configuration.
 
 ```bash
 # Request password reset (sends email)
-curl -X POST http://localhost:8080/api/auth/request-password-reset \
+curl -X POST http://localhost:8097/api/auth/request-password-reset \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com","app_url":"https://myapp.com"}'
 
 # Confirm password reset (with token from email)
-curl -X POST http://localhost:8080/api/auth/confirm-password-reset \
+curl -X POST http://localhost:8097/api/auth/confirm-password-reset \
   -H "Content-Type: application/json" \
   -d '{"token":"<reset_token>","password":"newpassword123"}'
 ```
@@ -426,13 +426,13 @@ Requires SMTP configuration and authentication.
 
 ```bash
 # Request verification email (requires auth)
-curl -X POST http://localhost:8080/api/auth/request-verification \
+curl -X POST http://localhost:8097/api/auth/request-verification \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer <token>" \
   -d '{"app_url":"https://myapp.com"}'
 
 # Confirm verification (with token from email)
-curl -X POST http://localhost:8080/api/auth/confirm-verification \
+curl -X POST http://localhost:8097/api/auth/confirm-verification \
   -H "Content-Type: application/json" \
   -d '{"token":"<verification_token>"}'
 ```
@@ -443,11 +443,11 @@ Requires OAuth environment variables for the provider.
 
 ```bash
 # List available providers
-curl http://localhost:8080/api/auth/oauth/providers
+curl http://localhost:8097/api/auth/oauth/providers
 # Returns: {"providers":["google","github"]}
 
 # Start OAuth flow (redirect user to this URL)
-curl http://localhost:8080/api/auth/oauth/google
+curl http://localhost:8097/api/auth/oauth/google
 # Returns: {"url":"https://accounts.google.com/o/oauth2/v2/auth?..."}
 
 # OAuth callback (handled automatically, returns JWT)
@@ -478,17 +478,17 @@ curl http://localhost:8080/api/auth/oauth/google
 
 ```bash
 # Create collection with file field
-curl -X POST http://localhost:8080/api/collections \
+curl -X POST http://localhost:8097/api/collections \
   -H "Content-Type: application/json" \
   -d '{"name":"docs","schema":{"title":{"type":"string"},"attachment":{"type":"file"}}}'
 
 # Upload file with record
-curl -X POST http://localhost:8080/api/collections/docs/records \
+curl -X POST http://localhost:8097/api/collections/docs/records \
   -F "title=My Document" \
   -F "attachment=@document.pdf"
 
 # Download file
-curl http://localhost:8080/api/files/docs/1/document_abc123.pdf -o file.pdf
+curl http://localhost:8097/api/files/docs/1/document_abc123.pdf -o file.pdf
 ```
 
 #### Protected Files
@@ -497,17 +497,17 @@ Mark file fields as protected to require token-based access:
 
 ```bash
 # Create collection with protected file
-curl -X POST http://localhost:8080/api/collections \
+curl -X POST http://localhost:8097/api/collections \
   -H "Content-Type: application/json" \
   -d '{"name":"private","schema":{"doc":{"type":"file","protected":true}}}'
 
 # Get file token (requires auth)
-curl -X POST http://localhost:8080/api/files/token \
+curl -X POST http://localhost:8097/api/files/token \
   -H "Authorization: Bearer <token>"
 # Returns: {"token":"...","expires":120}
 
 # Access protected file with token
-curl "http://localhost:8080/api/files/private/1/doc_abc123.pdf?token=<file_token>"
+curl "http://localhost:8097/api/files/private/1/doc_abc123.pdf?token=<file_token>"
 ```
 
 ### Realtime (SSE)
@@ -516,11 +516,11 @@ Subscribe to collection changes via Server-Sent Events:
 
 ```bash
 # Open SSE connection (returns client ID)
-curl -N http://localhost:8080/api/realtime
+curl -N http://localhost:8097/api/realtime
 # Output: id:abc123... event:MB_CONNECT data:{"clientId":"abc123..."}
 
 # Subscribe to collection changes
-curl -X POST http://localhost:8080/api/realtime \
+curl -X POST http://localhost:8097/api/realtime \
   -H "Content-Type: application/json" \
   -d '{"clientId":"abc123...","subscriptions":["posts/*"]}'
 ```
@@ -546,7 +546,7 @@ Control access to collections with PocketBase-compatible rules:
 
 ```bash
 # Create collection with rules
-curl -X POST http://localhost:8080/api/collections \
+curl -X POST http://localhost:8097/api/collections \
   -H "Content-Type: application/json" \
   -d '{
     "name": "posts",
@@ -559,7 +559,7 @@ curl -X POST http://localhost:8080/api/collections \
   }'
 
 # Update rules on existing collection
-curl -X PATCH http://localhost:8080/api/collections/posts \
+curl -X PATCH http://localhost:8097/api/collections/posts \
   -H "Content-Type: application/json" \
   -d '{"listRule": "status = \"published\""}'
 ```
@@ -641,7 +641,7 @@ MoteBase runs HTTP without TLS. For production, use a reverse proxy:
 ```
 # Caddyfile
 example.com {
-    reverse_proxy localhost:8080
+    reverse_proxy localhost:8097
 }
 ```
 

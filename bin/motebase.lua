@@ -50,7 +50,7 @@ local function print_help()
     print("Usage: motebase [options]")
     print("")
     print("Options:")
-    print("  -p, --port <port>       Port to listen on (default: 8080)")
+    print("  -p, --port <port>       Port to listen on (default: 8097)")
     print("  -h, --host <host>       Host to bind to (default: 0.0.0.0)")
     print("  -d, --db <path>         Database file path (default: motebase.db)")
     print("  -s, --secret <key>      JWT secret key")
@@ -92,16 +92,10 @@ local function main()
     end
 
     local cfg = srv:config()
-    io.stderr:write(
-        output.color("green")
-            .. "✓"
-            .. output.reset()
-            .. " motebase running on http://"
-            .. cfg.host
-            .. ":"
-            .. cfg.port
-            .. "\n"
-    )
+    local base_url = "http://" .. cfg.host .. ":" .. cfg.port
+    io.stderr:write(output.color("green") .. "✓" .. output.reset() .. " motebase running\n")
+    io.stderr:write(output.color("blue") .. "→" .. output.reset() .. " api: " .. base_url .. "/api/\n")
+    io.stderr:write(output.color("blue") .. "→" .. output.reset() .. " admin: " .. base_url .. "/_/\n")
     io.stderr:write(output.color("blue") .. "→" .. output.reset() .. " database: " .. cfg.db_path .. "\n")
     io.stderr:write(output.color("blue") .. "→" .. output.reset() .. " storage: " .. cfg.storage_path .. "\n")
     io.stderr:write(output.color("bright_black") .. "→" .. output.reset() .. " press Ctrl+C to stop\n")
@@ -125,7 +119,15 @@ local function main()
         log.info("hooks", "loaded hooks file", { path = hooks_path })
     end
 
-    srv:run()
+    local ok, run_err = pcall(function() srv:run() end)
+    if not ok then
+        if run_err and run_err:find("interrupted") then
+            io.stderr:write("\n" .. output.color("bright_black") .. "→" .. output.reset() .. " stopped\n")
+        else
+            io.stderr:write(output.color("red") .. "✗" .. output.reset() .. " " .. tostring(run_err) .. "\n")
+            os.exit(1)
+        end
+    end
 end
 
 main()

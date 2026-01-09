@@ -432,7 +432,7 @@ end
 function server.create(config)
     config = config or {}
     config.host = config.host or "0.0.0.0"
-    config.port = config.port or 8080
+    config.port = config.port or 8097
     config.secret = config.secret or os.getenv("MOTEBASE_SECRET") or "change-me-in-production"
     config.timeout = config.timeout or 30
     config.keep_alive_timeout = config.keep_alive_timeout or DEFAULT_KEEP_ALIVE_TIMEOUT
@@ -573,7 +573,6 @@ function server.create(config)
 
     function instance:run()
         self._running = true
-        print(string.format("Server listening on %s:%d (async)", config.host, config.port))
 
         while self._running do
             local read_sockets = { self._socket }

@@ -723,7 +723,7 @@ end
 -- routes --
 
 local function setup_routes()
-    router.get("/health", handle_health)
+    router.get("/api/health", handle_health)
 
     router.post("/api/collections", handle_create_collection)
     router.get("/api/collections", handle_list_collections)
@@ -767,7 +767,7 @@ end
 
 function motebase.start(config)
     config = config or {}
-    config.db_path = config.db_path or os.getenv("MOTEBASE_DB") or "motebase.db"
+    config.db_path = config.db_path or os.getenv("MOTEBASE_DB") or "./motebase.db"
     config.storage_path = config.storage_path or os.getenv("MOTEBASE_STORAGE") or "./storage"
     config.max_file_size = config.max_file_size or tonumber(os.getenv("MOTEBASE_MAX_FILE_SIZE")) or (10 * 1024 * 1024)
 
@@ -819,7 +819,8 @@ function motebase.start(config)
 
     setup_routes()
 
-    local srv = server.create(config)
+    local srv, srv_err = server.create(config)
+    if not srv then return nil, srv_err end
     return srv
 end
 
