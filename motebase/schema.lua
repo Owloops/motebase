@@ -85,14 +85,18 @@ function schema.validate(data, fields)
     local validated = {}
 
     for name, def in pairs(fields) do
-        local field_type = def.type or "string"
-        local required = def.required or false
-
-        local value, err = schema.validate_field(data[name], field_type, required, def)
-        if err then
-            errors[name] = err
+        if type(def) ~= "table" then
+            errors[name] = "invalid field definition"
         else
-            validated[name] = value
+            local field_type = def.type or "string"
+            local required = def.required or false
+
+            local value, err = schema.validate_field(data[name], field_type, required, def)
+            if err then
+                errors[name] = err
+            else
+                validated[name] = value
+            end
         end
     end
 

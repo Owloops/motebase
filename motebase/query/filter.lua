@@ -123,7 +123,11 @@ function filter.parse(filter_str)
     if not filter_str or filter_str == "" then return nil, "empty filter" end
 
     local ast = grammar:match(filter_str)
-    if not ast then return nil, "invalid filter syntax" end
+    if not ast then
+        local preview = filter_str:sub(1, 50)
+        if #filter_str > 50 then preview = preview .. "..." end
+        return nil, "invalid filter syntax: " .. preview
+    end
 
     return ast
 end

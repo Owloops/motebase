@@ -39,6 +39,8 @@ local function parse_args(args)
             i = i + 2
         elseif a == "--help" then
             return nil, "help"
+        elseif a:sub(1, 1) == "-" then
+            return nil, "unknown option: " .. a
         else
             i = i + 1
         end
@@ -74,20 +76,28 @@ local function print_help()
 end
 
 local function main()
-    local config, action = parse_args(arg)
+    local config, err = parse_args(arg)
 
-    if action == "help" or not config then
+    if err == "help" then
         print_help()
         os.exit(0)
+    end
+
+    if not config then
+        io.stderr:write("error: " .. err .. "\n")
+        io.stderr:write("run 'motebase --help' for usage\n")
+        os.exit(1)
     end
 
     local motebase = require("motebase")
     local output = require("motebase.utils.output")
     local log = require("motebase.utils.log")
 
-    local srv, err = motebase.start(config)
+    local srv, start_err = motebase.start(config)
     if not srv then
-        io.stderr:write(output.color("red") .. "✗" .. output.reset() .. " failed to start: " .. tostring(err) .. "\n")
+        io.stderr:write(
+            output.color("red") .. "✗" .. output.reset() .. " failed to start: " .. tostring(start_err) .. "\n"
+        )
         os.exit(1)
     end
 
@@ -119,7 +129,9 @@ local function main()
         log.info("hooks", "loaded hooks file", { path = hooks_path })
     end
 
-    local ok, run_err = pcall(function() srv:run() end)
+    local ok, run_err = pcall(function()
+        srv:run()
+    end)
     if not ok then
         if run_err and run_err:find("interrupted") then
             io.stderr:write("\n" .. output.color("bright_black") .. "→" .. output.reset() .. " stopped\n")

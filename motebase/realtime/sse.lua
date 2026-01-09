@@ -1,6 +1,7 @@
 local cjson = require("cjson")
 local client_mod = require("motebase.realtime.client")
 local broker = require("motebase.realtime.broker")
+local log = require("motebase.utils.log")
 
 local sse = {}
 
@@ -17,6 +18,7 @@ function sse.run_loop(wrapper, sse_client, send_fn)
     local connect_msg = client_mod.format_sse(sse_client.id, "MB_CONNECT", connect_data)
     local ok, err = send_fn(wrapper, connect_msg)
     if not ok then
+        log.error("sse", "failed to send connect message", { client_id = sse_client.id, error = err })
         broker.unregister(sse_client.id)
         return false, err
     end
@@ -28,6 +30,7 @@ function sse.run_loop(wrapper, sse_client, send_fn)
                 local sse_data = client_mod.format_sse(sse_client.id, msg.name, msg.data)
                 local send_ok, send_err = send_fn(wrapper, sse_data)
                 if not send_ok then
+                    log.error("sse", "failed to send message", { client_id = sse_client.id, error = send_err })
                     broker.unregister(sse_client.id)
                     return false, send_err
                 end

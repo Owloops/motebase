@@ -371,7 +371,7 @@ local function handle_request(wrapper, config)
 
     local ok, handler_err = pcall(handler, ctx)
     if not ok then
-        io.stderr:write("handler error: " .. tostring(handler_err) .. "\n")
+        io.stderr:write("handler error on " .. req.method .. " " .. path .. ": " .. tostring(handler_err) .. "\n")
         local cors = middleware.cors_headers()
         cors["Content-Type"] = "application/json"
         send_response(wrapper, 500, cors, middleware.encode_json({ error = "internal server error" }), false)

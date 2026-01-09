@@ -9,6 +9,7 @@ local auth = {}
 
 local RESET_TOKEN_EXPIRY = 3600
 local VERIFY_TOKEN_EXPIRY = 86400
+local MIN_PASSWORD_LENGTH = 8
 
 local superuser_email = nil
 
@@ -53,7 +54,9 @@ function auth.register(email, password)
 
     if not email_parser.is_valid(email) then return nil, "invalid email format" end
 
-    if #password < 8 then return nil, "password must be at least 8 characters" end
+    if #password < MIN_PASSWORD_LENGTH then
+        return nil, "password must be at least " .. MIN_PASSWORD_LENGTH .. " characters"
+    end
 
     local existing = db.query("SELECT id FROM _users WHERE email = ?", { email })
     if existing and #existing > 0 then
@@ -158,7 +161,9 @@ end
 
 function auth.confirm_password_reset(token, new_password)
     if not token then return nil, "token required" end
-    if not new_password or #new_password < 8 then return nil, "password must be at least 8 characters" end
+    if not new_password or #new_password < MIN_PASSWORD_LENGTH then
+        return nil, "password must be at least " .. MIN_PASSWORD_LENGTH .. " characters"
+    end
 
     local token_hash = crypto.to_hex(crypto.sha256(token))
     local now = current_timestamp()

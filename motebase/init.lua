@@ -241,7 +241,7 @@ local function handle_get_record(ctx)
     local expand_str
     if ctx.query_string then
         expand_str = ctx.query_string:match("expand=([^&]+)")
-        if expand_str then expand_str = expand_str:gsub("%%2C", ","):gsub("%%2E", ".") end
+        if expand_str then expand_str = url_util.decode(expand_str) end
     end
 
     if expand_str then record = collections.get_record(name, id, expand_str) end
