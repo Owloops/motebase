@@ -181,6 +181,39 @@ local function handle_delete_collection(ctx)
     server.json(ctx, 200, { deleted = true })
 end
 
+local function handle_export_collections(ctx)
+    if not ctx.user or not auth.is_superuser(ctx.user) then
+        server.error(ctx, 403, "superuser required")
+        return
+    end
+
+    local exported = collections.export()
+    server.json(ctx, 200, exported)
+end
+
+local function handle_import_collections(ctx)
+    if not ctx.user or not auth.is_superuser(ctx.user) then
+        server.error(ctx, 403, "superuser required")
+        return
+    end
+
+    local import_data = ctx.body.collections
+    local delete_missing = ctx.body.deleteMissing == true
+
+    if not import_data or type(import_data) ~= "table" then
+        server.error(ctx, 400, "collections array required")
+        return
+    end
+
+    local ok, errors = collections.import_collections(import_data, delete_missing)
+    if not ok then
+        server.json(ctx, 400, { error = "import failed", details = errors })
+        return
+    end
+
+    server.json(ctx, 204, nil)
+end
+
 local function handle_list_records(ctx)
     local name = ctx.params.name
 
@@ -728,6 +761,8 @@ local function setup_routes()
 
     router.post("/api/collections", handle_create_collection)
     router.get("/api/collections", handle_list_collections)
+    router.get("/api/collections/export", handle_export_collections)
+    router.post("/api/collections/import", handle_import_collections)
     router.patch("/api/collections/:name", handle_update_collection)
     router.delete("/api/collections/:name", handle_delete_collection)
 

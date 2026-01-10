@@ -298,15 +298,16 @@ curl "http://localhost:8097/api/collections/posts/records?skipTotal=true"
 Link records between collections using relation fields:
 
 ```bash
-# Create users collection
+# Create users collection (returns collection with id)
 curl -X POST http://localhost:8097/api/collections \
   -H "Content-Type: application/json" \
   -d '{"name":"users","schema":{"name":{"type":"string","required":true}}}'
+# Response: {"id":"abc123...","name":"users",...}
 
-# Create posts collection with author relation
+# Create posts collection with author relation (use the users collection id)
 curl -X POST http://localhost:8097/api/collections \
   -H "Content-Type: application/json" \
-  -d '{"name":"posts","schema":{"title":{"type":"string","required":true},"author":{"type":"relation","collection":"users"}}}'
+  -d '{"name":"posts","schema":{"title":{"type":"string","required":true},"author":{"type":"relation","collectionId":"abc123..."}}}'
 
 # Create user
 curl -X POST http://localhost:8097/api/collections/users/records \
@@ -319,6 +320,8 @@ curl -X POST http://localhost:8097/api/collections/posts/records \
   -d '{"title":"Hello World","author":1}'
 ```
 
+> **Note:** Relation fields use `collectionId` (the target collection's ID) rather than collection name. This ensures relations survive collection renames.
+
 #### Multiple Relations
 
 Store arrays of references using `multiple: true`:
@@ -328,11 +331,12 @@ Store arrays of references using `multiple: true`:
 curl -X POST http://localhost:8097/api/collections \
   -H "Content-Type: application/json" \
   -d '{"name":"tags","schema":{"name":{"type":"string","required":true}}}'
+# Response: {"id":"xyz789...","name":"tags",...}
 
-# Create articles with multiple tags
+# Create articles with multiple tags (use the tags collection id)
 curl -X POST http://localhost:8097/api/collections \
   -H "Content-Type: application/json" \
-  -d '{"name":"articles","schema":{"title":{"type":"string"},"tags":{"type":"relation","collection":"tags","multiple":true}}}'
+  -d '{"name":"articles","schema":{"title":{"type":"string"},"tags":{"type":"relation","collectionId":"xyz789...","multiple":true}}}'
 
 # Create article with tag IDs
 curl -X POST http://localhost:8097/api/collections/articles/records \
@@ -545,12 +549,12 @@ data:{"action":"create","record":{"id":1,"title":"Hello",...}}
 Control access to collections with PocketBase-compatible rules:
 
 ```bash
-# Create collection with rules
+# Create collection with rules (assuming users collection id is "abc123...")
 curl -X POST http://localhost:8097/api/collections \
   -H "Content-Type: application/json" \
   -d '{
     "name": "posts",
-    "schema": {"title": {"type": "string"}, "author": {"type": "relation", "collection": "users"}},
+    "schema": {"title": {"type": "string"}, "author": {"type": "relation", "collectionId": "abc123..."}},
     "listRule": "",
     "viewRule": "",
     "createRule": "@request.auth.id != \"\"",

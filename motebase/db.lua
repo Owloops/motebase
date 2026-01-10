@@ -1,4 +1,5 @@
 local sqlite3 = require("lsqlite3complete")
+local cjson = require("cjson")
 
 local db = {}
 
@@ -7,7 +8,9 @@ local conn
 local function bind_params(stmt, params)
     if not params then return end
     for i, v in ipairs(params) do
-        if type(v) == "boolean" then
+        if v == cjson.null then
+            stmt:bind(i, nil)
+        elseif type(v) == "boolean" then
             stmt:bind(i, v and 1 or 0)
         else
             stmt:bind(i, v)

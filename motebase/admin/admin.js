@@ -83,6 +83,8 @@ function adminApp() {
       deleteRule: ''
     },
     availableFieldTypes: AVAILABLE_FIELD_TYPES,
+    toasts: [],
+    toastIdCounter: 0,
 
     async init() {
       if (this.authToken) {
@@ -110,23 +112,35 @@ function adminApp() {
       const hash = window.location.hash.slice(1) || '/';
       const segments = hash.split('/').filter(Boolean);
 
-      this.errorMessage = '';
-
       if (segments.length === 0) {
         this.currentRoute = 'dashboard';
         this.routeParams = {};
       } else if (segments[0] === 'collections' && segments[1]) {
+        const collectionName = segments[1];
+        const collectionExists = this.collections.some(c => c.name === collectionName);
+        if (!collectionExists) {
+          this.showToast(`Collection "${collectionName}" not found`, 'error');
+          window.location.hash = '/';
+          return;
+        }
         this.currentRoute = 'collection';
-        this.routeParams = { collectionName: segments[1] };
+        this.routeParams = { collectionName };
         this.currentPage = 1;
         this.filterQuery = '';
         this.sortField = '';
         this.sortDirection = '';
         this.loadRecords();
       } else if (segments[0] === 'records' && segments[1] && segments[2]) {
+        const collectionName = segments[1];
+        const collectionExists = this.collections.some(c => c.name === collectionName);
+        if (!collectionExists) {
+          this.showToast(`Collection "${collectionName}" not found`, 'error');
+          window.location.hash = '/';
+          return;
+        }
         this.currentRoute = 'record';
         this.routeParams = {
-          collectionName: segments[1],
+          collectionName,
           recordId: segments[2]
         };
         this.loadRecordForEdit();
@@ -257,9 +271,10 @@ function adminApp() {
 
       try {
         const data = await this.apiRequest('GET', '/collections');
-        this.collections = data.items || data || [];
+        this.collections = Array.isArray(data.items) ? data.items : (Array.isArray(data) ? data : []);
       } catch (error) {
         this.errorMessage = error.message;
+        this.collections = [];
       } finally {
         this.isLoading = false;
       }
@@ -691,15 +706,15 @@ function adminApp() {
     },
 
     get filteredCollections() {
-      let result = this.collections;
+      const collections = this.collections || [];
       if (this.collectionSearchQuery.trim()) {
         const query = this.collectionSearchQuery.toLowerCase().trim();
-        result = this.collections.filter(c =>
+        return collections.filter(c =>
           c.name.toLowerCase().includes(query) ||
           (c.type || 'base').toLowerCase().includes(query)
         );
       }
-      return result;
+      return collections;
     },
 
     get collectionsTotalPages() {
@@ -800,6 +815,38 @@ function adminApp() {
 
     getFieldIcon(type) {
       return FIELD_ICONS[type] || FIELD_ICONS.text;
+    },
+
+    showToast(message, type = 'info', duration = 4000) {
+      const id = ++this.toastIdCounter;
+      const toast = { id, message, type, removing: false };
+      this.toasts.push(toast);
+
+      if (duration > 0) {
+        setTimeout(() => this.removeToast(id), duration);
+      }
+
+      return id;
+    },
+
+    removeToast(id) {
+      const toast = this.toasts.find(t => t.id === id);
+      if (toast) {
+        toast.removing = true;
+        setTimeout(() => {
+          this.toasts = this.toasts.filter(t => t.id !== id);
+        }, 200);
+      }
+    },
+
+    getToastIcon(type) {
+      const icons = {
+        error: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>',
+        success: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>',
+        warning: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+        info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>'
+      };
+      return icons[type] || icons.info;
     },
 
     openCollectionModal(collection = null) {
@@ -938,6 +985,180 @@ function adminApp() {
         this.closeCollectionModal();
       } catch (error) {
         this.collectionModalError = error.message;
+      } finally {
+        this.isLoading = false;
+      }
+    },
+
+    showImportModal: false,
+    importData: null,
+    importChanges: [],
+    importDeleteMissing: false,
+    importError: '',
+
+    async handleExport() {
+      try {
+        const data = await this.apiRequest('GET', '/collections/export');
+        const json = JSON.stringify(data, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `motebase_collections_${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        this.errorMessage = error.message;
+      }
+    },
+
+    openImportModal() {
+      this.showImportModal = true;
+      this.importData = null;
+      this.importChanges = [];
+      this.importDeleteMissing = false;
+      this.importError = '';
+    },
+
+    closeImportModal() {
+      this.showImportModal = false;
+      this.importData = null;
+      this.importChanges = [];
+      this.importError = '';
+    },
+
+    handleImportFileSelect(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onerror = () => {
+        this.importError = 'Failed to read file';
+      };
+      reader.onload = (e) => {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          if (!Array.isArray(parsed)) {
+            this.importError = 'Invalid format: expected an array of collections';
+            this.importData = null;
+            this.importChanges = [];
+            return;
+          }
+          this.importData = parsed;
+          this.importError = '';
+          this.computeImportChanges();
+        } catch (err) {
+          this.importError = 'Invalid JSON: ' + err.message;
+          this.importData = null;
+          this.importChanges = [];
+        }
+      };
+      reader.readAsText(file);
+    },
+
+    computeImportChanges() {
+      if (!this.importData || !Array.isArray(this.importData)) {
+        this.importChanges = [];
+        return;
+      }
+
+      const existingById = {};
+      const existingByName = {};
+      for (const col of this.collections) {
+        existingById[col.id] = col;
+        existingByName[col.name] = col;
+      }
+
+      const importedIds = new Set(this.importData.map(c => c.id));
+      const changes = [];
+
+      for (const col of this.importData) {
+        const existingWithId = existingById[col.id];
+        const existingWithName = existingByName[col.name];
+
+        if (existingWithId) {
+          if (existingWithId.name !== col.name) {
+            changes.push({
+              type: 'rename',
+              name: col.name,
+              oldName: existingWithId.name,
+              id: col.id
+            });
+          } else {
+            const schemaChanged = JSON.stringify(existingWithId.schema) !== JSON.stringify(col.schema);
+            const rulesChanged = ['listRule', 'viewRule', 'createRule', 'updateRule', 'deleteRule']
+              .some(r => (existingWithId[r] || '') !== (col[r] || ''));
+
+            if (schemaChanged || rulesChanged) {
+              changes.push({
+                type: 'update',
+                name: col.name,
+                id: col.id,
+                schemaChanged,
+                rulesChanged
+              });
+            }
+          }
+        } else if (existingWithName) {
+          changes.push({
+            type: 'conflict',
+            name: col.name,
+            error: 'Name already used by another collection'
+          });
+        } else {
+          changes.push({
+            type: 'create',
+            name: col.name,
+            id: col.id,
+            fieldCount: Object.keys(col.schema || {}).length
+          });
+        }
+      }
+
+      for (const col of this.collections) {
+        if (!importedIds.has(col.id)) {
+          changes.push({
+            type: 'delete',
+            name: col.name,
+            id: col.id,
+            conditional: true
+          });
+        }
+      }
+
+      this.importChanges = changes;
+    },
+
+    get importHasConflicts() {
+      return this.importChanges.some(c => c.type === 'conflict');
+    },
+
+    get importSummary() {
+      const creates = this.importChanges.filter(c => c.type === 'create').length;
+      const updates = this.importChanges.filter(c => c.type === 'update').length;
+      const renames = this.importChanges.filter(c => c.type === 'rename').length;
+      const deletes = this.importDeleteMissing ? this.importChanges.filter(c => c.type === 'delete').length : 0;
+      return { creates, updates, renames, deletes };
+    },
+
+    async handleImport() {
+      if (!this.importData || this.importHasConflicts) return;
+
+      this.isLoading = true;
+      this.importError = '';
+
+      try {
+        await this.apiRequest('POST', '/collections/import', {
+          collections: this.importData,
+          deleteMissing: this.importDeleteMissing
+        });
+
+        await this.loadCollections();
+        this.closeImportModal();
+      } catch (error) {
+        this.importError = error.message;
       } finally {
         this.isLoading = false;
       }

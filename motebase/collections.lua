@@ -17,6 +17,43 @@ local RULE_FIELDS = { "listRule", "viewRule", "createRule", "updateRule", "delet
 local ID_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789"
 local ID_LENGTH = 15
 
+local function validate_relation_fields(fields, existing_schema)
+    existing_schema = existing_schema or {}
+    local errors = {}
+
+    for field_name, def in pairs(fields) do
+        if def.type == "relation" then
+            if not def.collectionId then
+                errors[#errors + 1] = {
+                    field = field_name,
+                    error = "relation field requires collectionId",
+                }
+            else
+                local rows = db.query("SELECT id FROM _collections WHERE id = ?", { def.collectionId })
+                if not rows or not rows[1] then
+                    errors[#errors + 1] = {
+                        field = field_name,
+                        error = "collection with id '" .. def.collectionId .. "' not found",
+                    }
+                end
+
+                local old_def = existing_schema[field_name]
+                if old_def and old_def.type == "relation" and old_def.collectionId then
+                    if old_def.collectionId ~= def.collectionId then
+                        errors[#errors + 1] = {
+                            field = field_name,
+                            error = "relation collectionId cannot be changed",
+                        }
+                    end
+                end
+            end
+        end
+    end
+
+    if #errors > 0 then return nil, errors end
+    return true
+end
+
 local function generate_id()
     local bytes = crypto.random_bytes(ID_LENGTH)
     local id = {}
@@ -68,6 +105,9 @@ function collections.create(name, fields, rules, collection_type)
     -- Auth collections require email field
     if collection_type == "auth" then fields.email = fields.email or { type = "email", required = true } end
 
+    local valid, relation_errors = validate_relation_fields(fields)
+    if not valid then return nil, relation_errors end
+
     local columns = { "id INTEGER PRIMARY KEY AUTOINCREMENT" }
     for field_name, def in pairs(fields) do
         local sql_type = schema.field_to_sql_type(def.type or "string")
@@ -93,11 +133,11 @@ function collections.create(name, fields, rules, collection_type)
             name,
             cjson.encode(fields),
             collection_type,
-            rules.listRule,
-            rules.viewRule,
-            rules.createRule,
-            rules.updateRule,
-            rules.deleteRule,
+            rules.listRule or cjson.null,
+            rules.viewRule or cjson.null,
+            rules.createRule or cjson.null,
+            rules.updateRule or cjson.null,
+            rules.deleteRule or cjson.null,
         }
     )
     if insert_err then return nil, insert_err end
@@ -165,6 +205,9 @@ function collections.update(name, updates)
         local current_schema = collection.schema or {}
         local new_schema = updates.schema
 
+        local valid, relation_errors = validate_relation_fields(new_schema, current_schema)
+        if not valid then return nil, relation_errors end
+
         for field_name, def in pairs(new_schema) do
             if not current_schema[field_name] then
                 local sql_type = schema.field_to_sql_type(def.type or "string")
@@ -198,6 +241,178 @@ function collections.delete(name)
 
     db.run("DELETE FROM _collections WHERE name = ?", { name })
     schema_cache[name] = nil
+    return true
+end
+
+function collections.export()
+    local rows = db.query(
+        "SELECT id, name, schema, type, listRule, viewRule, createRule, updateRule, deleteRule FROM _collections ORDER BY name"
+    )
+    if not rows then return {} end
+
+    for i = 1, #rows do
+        rows[i].schema = cjson.decode(rows[i].schema)
+    end
+
+    return rows
+end
+
+function collections.import_collections(import_data, delete_missing)
+    local imported = import_data or {}
+    if #imported == 0 and not delete_missing then return true end
+
+    local errors = {}
+
+    local existing_by_id = {}
+    local existing_by_name = {}
+    local all_existing = collections.list() or {}
+
+    for _, col in ipairs(all_existing) do
+        existing_by_id[col.id] = col
+        existing_by_name[col.name] = col
+    end
+
+    local imported_ids = {}
+    for _, col in ipairs(imported) do
+        imported_ids[col.id] = true
+    end
+
+    local ok, err = db.transaction(function()
+        for _, col in ipairs(imported) do
+            local existing_with_id = existing_by_id[col.id]
+            local existing_with_name = existing_by_name[col.name]
+
+            if existing_with_id then
+                if existing_with_id.name ~= col.name then
+                    if existing_with_name and existing_with_name.id ~= col.id then
+                        errors[#errors + 1] = {
+                            collection = col.name,
+                            error = "name already used by another collection",
+                        }
+                        error("validation failed")
+                    end
+
+                    local _, rename_err = db.exec("ALTER TABLE " .. existing_with_id.name .. " RENAME TO " .. col.name)
+                    if rename_err then
+                        errors[#errors + 1] = { collection = col.name, error = rename_err }
+                        error("rename failed")
+                    end
+                    schema_cache[existing_with_id.name] = nil
+                end
+
+                local current_schema = existing_with_id.schema or {}
+                local new_schema = col.schema or {}
+
+                for field_name, def in pairs(new_schema) do
+                    local current_def = current_schema[field_name]
+                    if current_def then
+                        if current_def.type ~= def.type then
+                            errors[#errors + 1] = {
+                                collection = col.name,
+                                field = field_name,
+                                error = "field type cannot be changed",
+                            }
+                            error("validation failed")
+                        end
+                    else
+                        local sql_type = schema.field_to_sql_type(def.type or "string")
+                        local alter_sql = "ALTER TABLE " .. col.name .. " ADD COLUMN " .. field_name .. " " .. sql_type
+                        local add_ok, add_err = db.exec(alter_sql)
+                        if not add_ok then
+                            errors[#errors + 1] = { collection = col.name, field = field_name, error = add_err }
+                            error("add column failed")
+                        end
+                    end
+                end
+
+                local sets = { "name = ?", "schema = ?", "type = ?" }
+                local values = { col.name, cjson.encode(col.schema or {}), col.type or "base" }
+
+                for _, rule_field in ipairs(RULE_FIELDS) do
+                    sets[#sets + 1] = rule_field .. " = ?"
+                    values[#values + 1] = col[rule_field] or cjson.null
+                end
+
+                values[#values + 1] = col.id
+
+                local update_sql = "UPDATE _collections SET " .. table.concat(sets, ", ") .. " WHERE id = ?"
+                local _, update_err = db.run(update_sql, values)
+                if update_err then
+                    errors[#errors + 1] = { collection = col.name, error = update_err }
+                    error("update failed")
+                end
+                schema_cache[col.name] = nil
+            else
+                if existing_with_name then
+                    errors[#errors + 1] = {
+                        collection = col.name,
+                        error = "name already used by another collection",
+                    }
+                    error("validation failed")
+                end
+
+                local col_type = col.type or "base"
+                local fields = col.schema or {}
+
+                local columns = { "id INTEGER PRIMARY KEY AUTOINCREMENT" }
+                for field_name, def in pairs(fields) do
+                    local sql_type = schema.field_to_sql_type(def.type or "string")
+                    local nullable = def.required and " NOT NULL" or ""
+                    columns[#columns + 1] = field_name .. " " .. sql_type .. nullable
+                end
+
+                if col_type == "auth" then columns[#columns + 1] = "password_hash TEXT" end
+                columns[#columns + 1] = "created_at INTEGER DEFAULT (strftime('%s', 'now'))"
+                columns[#columns + 1] = "updated_at INTEGER DEFAULT (strftime('%s', 'now'))"
+
+                local create_sql = "CREATE TABLE " .. col.name .. " (" .. table.concat(columns, ", ") .. ")"
+                local create_ok, create_err = db.exec(create_sql)
+                if not create_ok then
+                    errors[#errors + 1] = { collection = col.name, error = create_err }
+                    error("create table failed")
+                end
+
+                local _, insert_err = db.insert(
+                    "INSERT INTO _collections (id, name, schema, type, listRule, viewRule, createRule, updateRule, deleteRule) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    {
+                        col.id,
+                        col.name,
+                        cjson.encode(col.schema or {}),
+                        col.type or "base",
+                        col.listRule,
+                        col.viewRule,
+                        col.createRule,
+                        col.updateRule,
+                        col.deleteRule,
+                    }
+                )
+                if insert_err then
+                    errors[#errors + 1] = { collection = col.name, error = insert_err }
+                    error("insert failed")
+                end
+            end
+        end
+
+        if delete_missing then
+            for _, col in ipairs(all_existing) do
+                if not imported_ids[col.id] then
+                    local drop_ok, drop_err = db.exec("DROP TABLE " .. col.name)
+                    if not drop_ok then
+                        errors[#errors + 1] = { collection = col.name, error = drop_err }
+                        error("drop failed")
+                    end
+                    db.run("DELETE FROM _collections WHERE id = ?", { col.id })
+                    schema_cache[col.name] = nil
+                end
+            end
+        end
+    end)
+
+    if not ok then
+        if #errors > 0 then return nil, errors end
+        return nil, { { error = err } }
+    end
+
     return true
 end
 

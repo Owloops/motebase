@@ -13,6 +13,21 @@
 </head>
 <body x-data="adminApp()" x-init="init()" x-cloak>
 
+    <!-- Toast Notifications -->
+    <div class="toast-container">
+        <template x-for="toast in toasts" :key="toast.id">
+            <div class="toast" :class="['toast-' + toast.type, toast.removing ? 'toast-out' : '']">
+                <span class="toast-icon" x-html="getToastIcon(toast.type)"></span>
+                <span class="toast-message" x-text="toast.message"></span>
+                <button class="toast-close" @click="removeToast(toast.id)" aria-label="Dismiss">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+        </template>
+    </div>
+
     <!-- Login Screen -->
     <template x-if="!authToken">
         <main class="container login-container">
@@ -123,6 +138,8 @@
                                     style="margin: 0; width: 200px;"
                                     x-show="collections.length > 0"
                                 >
+                                <button class="outline secondary" @click="openImportModal()">Import</button>
+                                <button class="outline secondary" @click="handleExport()" x-show="collections.length > 0">Export</button>
                                 <button @click="openCollectionModal()">+ New Collection</button>
                             </div>
                         </div>
@@ -806,6 +823,84 @@
                 </template>
 
             </main>
+
+            <!-- Import Modal -->
+            <template x-if="showImportModal">
+                <div class="modal-backdrop" @click.self="closeImportModal()">
+                    <div class="modal-content" style="max-width: 600px;">
+                        <div class="modal-header">
+                            <h3>Import Collections</h3>
+                            <button class="outline secondary" @click="closeImportModal()" style="width: auto; margin: 0; padding: 4px 12px;">✕</button>
+                        </div>
+                        <div class="modal-body">
+                            <p style="color: var(--pico-muted-color); margin-bottom: var(--spacing-md);">
+                                Import collection schemas from a JSON file. This will create, update, or rename collections based on their IDs.
+                            </p>
+
+                            <label>
+                                Select JSON file
+                                <input type="file" accept=".json" @change="handleImportFileSelect($event)">
+                            </label>
+
+                            <!-- Preview changes -->
+                            <template x-if="importData && importChanges.length > 0">
+                                <div class="import-preview">
+                                    <h4 style="margin-bottom: var(--spacing-sm);">Changes to apply:</h4>
+                                    <div class="import-changes-list">
+                                        <template x-for="change in importChanges" :key="change.id || change.name">
+                                            <div class="import-change-item" :class="'change-' + change.type">
+                                                <span class="change-badge" x-text="change.type"></span>
+                                                <span class="change-name" x-text="change.name"></span>
+                                                <template x-if="change.type === 'rename'">
+                                                    <span class="change-detail">← <span x-text="change.oldName"></span></span>
+                                                </template>
+                                                <template x-if="change.type === 'create'">
+                                                    <span class="change-detail">(<span x-text="change.fieldCount"></span> fields)</span>
+                                                </template>
+                                                <template x-if="change.type === 'update'">
+                                                    <span class="change-detail" x-text="[change.schemaChanged ? 'schema' : '', change.rulesChanged ? 'rules' : ''].filter(Boolean).join(', ')"></span>
+                                                </template>
+                                                <template x-if="change.type === 'delete'">
+                                                    <span class="change-detail">(if delete missing)</span>
+                                                </template>
+                                                <template x-if="change.type === 'conflict'">
+                                                    <span class="change-error" x-text="change.error"></span>
+                                                </template>
+                                            </div>
+                                        </template>
+                                    </div>
+
+                                    <label style="margin-top: var(--spacing-md); display: flex; align-items: center; gap: var(--spacing-sm);">
+                                        <input type="checkbox" x-model="importDeleteMissing" @change="computeImportChanges()" style="margin: 0;">
+                                        <span>Delete collections not in import file</span>
+                                    </label>
+                                    <small style="color: var(--pico-del-color);" x-show="importDeleteMissing">
+                                        ⚠ This will delete all data in removed collections!
+                                    </small>
+                                </div>
+                            </template>
+
+                            <template x-if="importData && importChanges.length === 0">
+                                <div class="import-preview">
+                                    <p style="color: var(--pico-muted-color);">No changes detected. All collections are up to date.</p>
+                                </div>
+                            </template>
+
+                            <p x-show="importError" x-text="importError" class="error-message"></p>
+                        </div>
+                        <div class="modal-footer">
+                            <button class="outline secondary" @click="closeImportModal()">Cancel</button>
+                            <button
+                                @click="handleImport()"
+                                :disabled="!importData || importHasConflicts || isLoading"
+                                :aria-busy="isLoading"
+                            >
+                                Import
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </template>
 
             <!-- Collection Editor Modal -->
             <template x-if="showCollectionModal">

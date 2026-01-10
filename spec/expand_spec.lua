@@ -127,12 +127,12 @@ describe("expand", function()
         before_each(function()
             db.open(":memory:")
             collections.init()
-            collections.create("users", {
+            local users_id = collections.create("users", {
                 name = { type = "string", required = true },
             })
             collections.create("posts", {
                 title = { type = "string", required = true },
-                author = { type = "relation", collection = "users" },
+                author = { type = "relation", collectionId = users_id },
             })
             collections.create_record("users", { name = "Alice" })
             collections.create_record("users", { name = "Bob" })
@@ -204,12 +204,12 @@ describe("expand", function()
         before_each(function()
             db.open(":memory:")
             collections.init()
-            collections.create("tags", {
+            local tags_id = collections.create("tags", {
                 name = { type = "string", required = true },
             })
             collections.create("articles", {
                 title = { type = "string", required = true },
-                tags = { type = "relation", collection = "tags", multiple = true },
+                tags = { type = "relation", collectionId = tags_id, multiple = true },
             })
             collections.create_record("tags", { name = "lua" })
             collections.create_record("tags", { name = "database" })

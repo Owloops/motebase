@@ -120,20 +120,22 @@ describe("collections", function()
     end)
 
     describe("relations", function()
+        local users_id, tags_id
+
         before_each(function()
-            collections.create("users", {
+            users_id = collections.create("users", {
                 name = { type = "string", required = true },
             })
             collections.create("posts", {
                 title = { type = "string", required = true },
-                author = { type = "relation", collection = "users" },
+                author = { type = "relation", collectionId = users_id },
             })
-            collections.create("tags", {
+            tags_id = collections.create("tags", {
                 name = { type = "string", required = true },
             })
             collections.create("articles", {
                 title = { type = "string", required = true },
-                tags = { type = "relation", collection = "tags", multiple = true },
+                tags = { type = "relation", collectionId = tags_id, multiple = true },
             })
         end)
 
@@ -240,6 +242,332 @@ describe("collections", function()
             assert.is_truthy(result.items[1].expand)
             assert.is_truthy(result.items[1].expand.writer)
             assert.are.equal("Hemingway", result.items[1].expand.writer.name)
+        end)
+    end)
+
+    describe("export", function()
+        it("exports all collections", function()
+            collections.create("posts", {
+                title = { type = "string", required = true },
+            }, { listRule = "" })
+            collections.create("users", {
+                name = { type = "string" },
+            }, { viewRule = "@request.auth.id != ''" })
+
+            local exported = collections.export()
+            assert.are.equal(2, #exported)
+
+            assert.are.equal("posts", exported[1].name)
+            assert.is_truthy(exported[1].id)
+            assert.is_truthy(exported[1].schema.title)
+            assert.are.equal("", exported[1].listRule)
+
+            assert.are.equal("users", exported[2].name)
+            assert.is_truthy(exported[2].id)
+            assert.are.equal("@request.auth.id != ''", exported[2].viewRule)
+        end)
+
+        it("excludes created_at from export", function()
+            collections.create("posts", { title = { type = "string" } })
+            local exported = collections.export()
+
+            assert.is_nil(exported[1].created_at)
+        end)
+
+        it("returns empty array when no collections", function()
+            local exported = collections.export()
+            assert.are.equal(0, #exported)
+        end)
+    end)
+
+    describe("import", function()
+        it("creates new collections from import", function()
+            local ok = collections.import_collections({
+                {
+                    id = "abc123def456ghi",
+                    name = "posts",
+                    type = "base",
+                    schema = { title = { type = "string", required = true } },
+                    listRule = "",
+                },
+            })
+            assert.is_true(ok)
+
+            local col = collections.get("posts")
+            assert.is_truthy(col)
+            assert.are.equal("abc123def456ghi", col.id)
+            assert.is_truthy(col.schema.title)
+        end)
+
+        it("updates existing collection by ID", function()
+            local id = collections.create("posts", {
+                title = { type = "string" },
+            }, { listRule = "" })
+
+            local ok = collections.import_collections({
+                {
+                    id = id,
+                    name = "posts",
+                    type = "base",
+                    schema = {
+                        title = { type = "string" },
+                        body = { type = "text" },
+                    },
+                    listRule = "@request.auth.id != ''",
+                },
+            })
+            assert.is_true(ok)
+
+            local col = collections.get("posts")
+            assert.is_truthy(col.schema.body)
+            assert.are.equal("@request.auth.id != ''", col.listRule)
+        end)
+
+        it("renames collection when ID matches but name differs", function()
+            local id = collections.create("old_posts", {
+                title = { type = "string" },
+            })
+
+            local ok = collections.import_collections({
+                {
+                    id = id,
+                    name = "new_posts",
+                    type = "base",
+                    schema = { title = { type = "string" } },
+                },
+            })
+            assert.is_true(ok)
+
+            assert.is_nil(collections.get("old_posts"))
+            local col = collections.get("new_posts")
+            assert.is_truthy(col)
+            assert.are.equal(id, col.id)
+        end)
+
+        it("preserves data when renaming collection", function()
+            local id = collections.create("old_posts", {
+                title = { type = "string" },
+            })
+            collections.create_record("old_posts", { title = "Test Post" })
+
+            collections.import_collections({
+                {
+                    id = id,
+                    name = "new_posts",
+                    type = "base",
+                    schema = { title = { type = "string" } },
+                },
+            })
+
+            local record = collections.get_record("new_posts", 1)
+            assert.is_truthy(record)
+            assert.are.equal("Test Post", record.title)
+        end)
+
+        it("rejects import when name conflicts with different ID", function()
+            collections.create("posts", { title = { type = "string" } })
+
+            local ok, errors = collections.import_collections({
+                {
+                    id = "different_id_123",
+                    name = "posts",
+                    type = "base",
+                    schema = { title = { type = "string" } },
+                },
+            })
+            assert.is_nil(ok)
+            assert.is_truthy(errors)
+            assert.are.equal("name already used by another collection", errors[1].error)
+        end)
+
+        it("rejects field type changes", function()
+            local id = collections.create("posts", {
+                title = { type = "string" },
+            })
+
+            local ok, errors = collections.import_collections({
+                {
+                    id = id,
+                    name = "posts",
+                    type = "base",
+                    schema = { title = { type = "number" } },
+                },
+            })
+            assert.is_nil(ok)
+            assert.is_truthy(errors)
+            assert.are.equal("field type cannot be changed", errors[1].error)
+            assert.are.equal("title", errors[1].field)
+        end)
+
+        it("deletes missing collections when deleteMissing is true", function()
+            local id1 = collections.create("keep", { title = { type = "string" } })
+            collections.create("delete_me", { name = { type = "string" } })
+
+            local ok = collections.import_collections({
+                {
+                    id = id1,
+                    name = "keep",
+                    type = "base",
+                    schema = { title = { type = "string" } },
+                },
+            }, true)
+            assert.is_true(ok)
+
+            assert.is_truthy(collections.get("keep"))
+            assert.is_nil(collections.get("delete_me"))
+        end)
+
+        it("keeps missing collections when deleteMissing is false", function()
+            local id1 = collections.create("keep", { title = { type = "string" } })
+            collections.create("also_keep", { name = { type = "string" } })
+
+            local ok = collections.import_collections({
+                {
+                    id = id1,
+                    name = "keep",
+                    type = "base",
+                    schema = { title = { type = "string" } },
+                },
+            }, false)
+            assert.is_true(ok)
+
+            assert.is_truthy(collections.get("keep"))
+            assert.is_truthy(collections.get("also_keep"))
+        end)
+
+        it("rolls back all changes on error", function()
+            local id = collections.create("posts", {
+                title = { type = "string" },
+            })
+
+            local ok = collections.import_collections({
+                {
+                    id = id,
+                    name = "posts",
+                    type = "base",
+                    schema = { title = { type = "string" }, body = { type = "text" } },
+                },
+                {
+                    id = "new_id_1234567",
+                    name = "posts",
+                    type = "base",
+                    schema = { name = { type = "string" } },
+                },
+            })
+            assert.is_nil(ok)
+
+            local col = collections.get("posts")
+            assert.is_nil(col.schema.body)
+        end)
+
+        it("handles empty import with deleteMissing", function()
+            collections.create("posts", { title = { type = "string" } })
+
+            local ok = collections.import_collections({}, true)
+            assert.is_true(ok)
+
+            assert.is_nil(collections.get("posts"))
+        end)
+
+        it("handles empty import without deleteMissing", function()
+            collections.create("posts", { title = { type = "string" } })
+
+            local ok = collections.import_collections({}, false)
+            assert.is_true(ok)
+
+            assert.is_truthy(collections.get("posts"))
+        end)
+    end)
+
+    describe("relation collectionId", function()
+        it("requires collectionId for relation fields", function()
+            collections.create("users", { name = { type = "string" } })
+
+            local ok, err = collections.create("posts", {
+                title = { type = "string" },
+                author = { type = "relation" },
+            })
+
+            assert.is_nil(ok)
+            assert.is_table(err)
+            assert.are.equal("author", err[1].field)
+            assert.matches("requires collectionId", err[1].error)
+        end)
+
+        it("validates collectionId exists", function()
+            local ok, err = collections.create("posts", {
+                title = { type = "string" },
+                author = { type = "relation", collectionId = "nonexistent123" },
+            })
+
+            assert.is_nil(ok)
+            assert.is_table(err)
+            assert.are.equal("author", err[1].field)
+            assert.matches("not found", err[1].error)
+        end)
+
+        it("creates relation with valid collectionId", function()
+            local users_id = collections.create("users", { name = { type = "string" } })
+
+            local posts_id = collections.create("posts", {
+                title = { type = "string" },
+                author = { type = "relation", collectionId = users_id },
+            })
+
+            assert.is_truthy(posts_id)
+
+            local posts = collections.get("posts")
+            assert.are.equal(users_id, posts.schema.author.collectionId)
+        end)
+
+        it("prevents changing collectionId on existing relation", function()
+            local users_id = collections.create("users", { name = { type = "string" } })
+            local admins_id = collections.create("admins", { name = { type = "string" } })
+
+            collections.create("posts", {
+                title = { type = "string" },
+                author = { type = "relation", collectionId = users_id },
+            })
+
+            local ok, err = collections.update("posts", {
+                schema = {
+                    title = { type = "string" },
+                    author = { type = "relation", collectionId = admins_id },
+                },
+            })
+
+            assert.is_nil(ok)
+            assert.is_table(err)
+            assert.are.equal("author", err[1].field)
+            assert.matches("cannot be changed", err[1].error)
+        end)
+
+        it("allows adding new relation field on update", function()
+            local users_id = collections.create("users", { name = { type = "string" } })
+            collections.create("posts", { title = { type = "string" } })
+
+            local updated, err = collections.update("posts", {
+                schema = {
+                    title = { type = "string" },
+                    author = { type = "relation", collectionId = users_id },
+                },
+            })
+
+            assert.is_nil(err)
+            assert.is_truthy(updated)
+            assert.are.equal(users_id, updated.schema.author.collectionId)
+        end)
+
+        it("survives collection rename", function()
+            local users_id = collections.create("users", { name = { type = "string" } })
+
+            collections.create("posts", {
+                title = { type = "string" },
+                author = { type = "relation", collectionId = users_id },
+            })
+
+            local posts = collections.get("posts")
+            assert.are.equal(users_id, posts.schema.author.collectionId)
         end)
     end)
 end)
