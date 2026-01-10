@@ -1,6 +1,7 @@
 local db = require("motebase.db")
 local schema = require("motebase.schema")
 local cjson = require("cjson")
+local crypto = require("motebase.crypto")
 local files = require("motebase.files")
 local multipart = require("motebase.parser.multipart")
 local query = require("motebase.query")
@@ -13,6 +14,19 @@ local schema_cache = {}
 
 local RULE_FIELDS = { "listRule", "viewRule", "createRule", "updateRule", "deleteRule" }
 
+local ID_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789"
+local ID_LENGTH = 15
+
+local function generate_id()
+    local bytes = crypto.random_bytes(ID_LENGTH)
+    local id = {}
+    for i = 1, ID_LENGTH do
+        local idx = (string.byte(bytes, i) % 36) + 1
+        id[i] = ID_CHARS:sub(idx, idx)
+    end
+    return table.concat(id)
+end
+
 local function get_file_fields(collection_schema)
     local file_fields = {}
     for field_name, def in pairs(collection_schema) do
@@ -24,7 +38,8 @@ end
 function collections.init()
     return db.exec([[
         CREATE TABLE IF NOT EXISTS _collections (
-            name TEXT PRIMARY KEY,
+            id TEXT PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL,
             schema TEXT NOT NULL,
             type TEXT DEFAULT 'base',
             listRule TEXT,
@@ -69,10 +84,12 @@ function collections.create(name, fields, rules, collection_type)
     local ok, err = db.exec(create_sql)
     if not ok then return nil, err end
 
+    local collection_id = generate_id()
     rules = rules or {}
     local _, insert_err = db.insert(
-        "INSERT INTO _collections (name, schema, type, listRule, viewRule, createRule, updateRule, deleteRule) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO _collections (id, name, schema, type, listRule, viewRule, createRule, updateRule, deleteRule) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
         {
+            collection_id,
             name,
             cjson.encode(fields),
             collection_type,
@@ -86,12 +103,12 @@ function collections.create(name, fields, rules, collection_type)
     if insert_err then return nil, insert_err end
 
     schema_cache[name] = nil
-    return true
+    return collection_id
 end
 
 function collections.list()
     local rows = db.query(
-        "SELECT name, schema, type, listRule, viewRule, createRule, updateRule, deleteRule, created_at FROM _collections ORDER BY name"
+        "SELECT id, name, schema, type, listRule, viewRule, createRule, updateRule, deleteRule, created_at FROM _collections ORDER BY name"
     )
     if not rows then return nil end
     for i = 1, #rows do
@@ -104,13 +121,24 @@ function collections.get(name)
     if schema_cache[name] then return schema_cache[name] end
 
     local rows = db.query(
-        "SELECT name, schema, type, listRule, viewRule, createRule, updateRule, deleteRule, created_at FROM _collections WHERE name = ?",
+        "SELECT id, name, schema, type, listRule, viewRule, createRule, updateRule, deleteRule, created_at FROM _collections WHERE name = ?",
         { name }
     )
     if not rows or #rows == 0 then return nil end
     local collection = rows[1]
     collection.schema = cjson.decode(collection.schema)
     schema_cache[name] = collection
+    return collection
+end
+
+function collections.get_by_id(id)
+    local rows = db.query(
+        "SELECT id, name, schema, type, listRule, viewRule, createRule, updateRule, deleteRule, created_at FROM _collections WHERE id = ?",
+        { id }
+    )
+    if not rows or #rows == 0 then return nil end
+    local collection = rows[1]
+    collection.schema = cjson.decode(collection.schema)
     return collection
 end
 

@@ -20,7 +20,8 @@ local registry = {
 
             db.exec([[
                 CREATE TABLE IF NOT EXISTS _collections (
-                    name TEXT PRIMARY KEY,
+                    id TEXT PRIMARY KEY,
+                    name TEXT UNIQUE NOT NULL,
                     schema TEXT NOT NULL,
                     type TEXT DEFAULT 'base',
                     listRule TEXT,

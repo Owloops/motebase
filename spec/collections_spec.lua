@@ -12,15 +12,17 @@ describe("collections", function()
     end)
 
     it("creates and retrieves collection", function()
-        local ok = collections.create("posts", {
+        local id = collections.create("posts", {
             title = { type = "string", required = true },
             body = { type = "text" },
         })
-        assert.is_true(ok)
+        assert.is_truthy(id)
+        assert.are.equal(15, #id)
 
         local collection = collections.get("posts")
         assert.is_truthy(collection)
         assert.are.equal("posts", collection.name)
+        assert.are.equal(id, collection.id)
         assert.is_truthy(collection.schema.title)
     end)
 
@@ -45,10 +47,24 @@ describe("collections", function()
 
         local list = collections.list()
         assert.are.equal(2, #list)
+        assert.is_truthy(list[1].id)
+        assert.is_truthy(list[2].id)
 
         local ok = collections.delete("posts")
         assert.is_true(ok)
         assert.is_nil(collections.get("posts"))
+    end)
+
+    it("retrieves collection by id", function()
+        local id = collections.create("posts", { title = { type = "string" } })
+        assert.is_truthy(id)
+
+        local collection = collections.get_by_id(id)
+        assert.is_truthy(collection)
+        assert.are.equal("posts", collection.name)
+        assert.are.equal(id, collection.id)
+
+        assert.is_nil(collections.get_by_id("nonexistent123"))
     end)
 
     describe("records", function()
@@ -203,6 +219,27 @@ describe("collections", function()
             local result = collections.list_records("posts", "expand=author")
             assert.are.equal(1, #result.items)
             assert.is_nil(result.items[1].expand.author)
+        end)
+    end)
+
+    describe("relations with collectionId", function()
+        it("expands relation using collectionId instead of collection name", function()
+            local users_id = collections.create("authors", {
+                name = { type = "string", required = true },
+            })
+            collections.create("books", {
+                title = { type = "string", required = true },
+                writer = { type = "relation", collectionId = users_id },
+            })
+
+            collections.create_record("authors", { name = "Hemingway" })
+            collections.create_record("books", { title = "The Old Man and the Sea", writer = 1 })
+
+            local result = collections.list_records("books", "expand=writer")
+            assert.are.equal(1, #result.items)
+            assert.is_truthy(result.items[1].expand)
+            assert.is_truthy(result.items[1].expand.writer)
+            assert.are.equal("Hemingway", result.items[1].expand.writer.name)
         end)
     end)
 end)

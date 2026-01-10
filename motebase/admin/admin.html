@@ -139,7 +139,7 @@
                         </div>
 
                         <div class="card-grid" x-show="!isLoading && filteredCollections.length > 0">
-                            <template x-for="collection in paginatedCollections" :key="collection.name">
+                            <template x-for="collection in paginatedCollections" :key="collection.id || collection.name">
                                 <article
                                     class="collection-card"
                                     @click="navigateTo('/collections/' + collection.name)"
@@ -150,6 +150,9 @@
                                     </header>
                                     <p>
                                         <span x-text="schemaToArray(collection.schema).length"></span> fields
+                                    </p>
+                                    <p x-show="collection.id" style="font-size: 0.7rem; color: var(--pico-muted-color); margin-top: -8px;">
+                                        <span x-text="collection.id"></span>
                                     </p>
                                     <footer>
                                         <button
@@ -472,7 +475,7 @@
                                                         @focus="openDropdown()"
                                                         @input.debounce.300ms="searchRecords()"
                                                         @keydown.escape="closeDropdown()"
-                                                        :placeholder="'Search ' + (field.options?.collection || 'related') + '...'"
+                                                        :placeholder="'Search ' + (getTargetCollectionName() || 'related') + '...'"
                                                     >
 
                                                     <!-- Dropdown -->

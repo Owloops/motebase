@@ -76,13 +76,23 @@ function expand.fetch_and_index(ids, collection_name)
     return index
 end
 
+local function resolve_target_collection(field_def)
+    if field_def.collectionId then
+        local rows = db.query("SELECT name FROM _collections WHERE id = ?", { field_def.collectionId })
+        return rows and rows[1] and rows[1].name or nil
+    end
+    return field_def.collection
+end
+
 local function process_forward(records, node, schema, get_collection, depth)
     local field_def = schema[node.field]
     if not field_def or field_def.type ~= "relation" then
         return -- skip non-relation fields silently
     end
 
-    local target_collection = field_def.collection
+    local target_collection = resolve_target_collection(field_def)
+    if not target_collection then return end
+
     local is_multiple = field_def.multiple
 
     local all_ids = {}

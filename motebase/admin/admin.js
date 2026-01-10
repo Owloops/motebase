@@ -954,6 +954,15 @@ function relationPicker(field) {
     options: [],
     selectedRecord: null,
 
+    getTargetCollectionName() {
+      const parentData = this.$root._x_dataStack[0];
+      if (this.field.options?.collectionId) {
+        const col = parentData.collections.find(c => c.id === this.field.options.collectionId);
+        return col?.name;
+      }
+      return this.field.options?.collection;
+    },
+
     async init() {
       const parentData = this.$root._x_dataStack[0];
       const value = parentData.recordFormData[this.field.name];
@@ -963,7 +972,7 @@ function relationPicker(field) {
     },
 
     async loadSelectedRecord(id) {
-      const collection = this.field.options?.collection;
+      const collection = this.getTargetCollectionName();
       if (!collection || !id) return;
 
       try {
@@ -987,7 +996,7 @@ function relationPicker(field) {
     },
 
     async searchRecords() {
-      const collection = this.field.options?.collection;
+      const collection = this.getTargetCollectionName();
       if (!collection) return;
 
       this.isLoading = true;
