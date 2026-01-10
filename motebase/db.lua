@@ -88,4 +88,21 @@ function db.get_connection()
     return conn
 end
 
+function db.transaction(fn)
+    if not conn then return nil, "database not open" end
+
+    local result = conn:exec("BEGIN TRANSACTION")
+    if result ~= sqlite3.OK then return nil, conn:errmsg() end
+
+    local ok, err = pcall(fn)
+    if ok then
+        result = conn:exec("COMMIT")
+        if result ~= sqlite3.OK then return nil, conn:errmsg() end
+        return true
+    else
+        conn:exec("ROLLBACK")
+        return nil, err
+    end
+end
+
 return db

@@ -14,6 +14,7 @@ local cjson = require("cjson")
 local admin = require("motebase.admin")
 local settings = require("motebase.settings")
 local logs = require("motebase.logs")
+local migrations = require("motebase.migrations")
 
 local motebase = {}
 
@@ -773,6 +774,9 @@ function motebase.start(config)
 
     local ok, err = db.open(config.db_path)
     if not ok then return nil, err end
+
+    local migrate_ok, migrate_err = migrations.run()
+    if not migrate_ok then return nil, migrate_err end
 
     local init_ok, init_err = collections.init()
     if not init_ok then return nil, init_err end
