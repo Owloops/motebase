@@ -6,6 +6,15 @@ local log = require("motebase.utils.log")
 local http_parser = require("motebase.parser.http")
 local ratelimit = require("motebase.ratelimit")
 
+local cron_module = nil
+local function get_cron()
+    if cron_module == nil then
+        local ok, mod = pcall(require, "motebase.cron")
+        cron_module = ok and mod or false
+    end
+    return cron_module
+end
+
 local logs_module = nil
 local function get_logs()
     if logs_module == nil then
@@ -592,6 +601,9 @@ function server.create(config)
             if writable then process_writable(writable) end
 
             process_sse_clients()
+
+            local cron = get_cron()
+            if cron and cron.is_running() then pcall(cron.tick) end
 
             clients = cleanup_timed_out()
             self._clients = clients

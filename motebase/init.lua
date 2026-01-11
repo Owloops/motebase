@@ -15,6 +15,8 @@ local admin = require("motebase.admin")
 local settings = require("motebase.settings")
 local logs = require("motebase.logs")
 local migrations = require("motebase.migrations")
+local jobs = require("motebase.jobs")
+local cron = require("motebase.cron")
 
 local motebase = {}
 
@@ -858,14 +860,28 @@ function motebase.start(config)
 
     setup_routes()
 
+    cron.register_builtin_jobs()
+    cron.start()
+
     local srv, srv_err = server.create(config)
     if not srv then return nil, srv_err end
     return srv
 end
 
 function motebase.stop()
+    cron.stop()
     db.close()
     router.clear()
+end
+
+-- jobs api --
+
+function motebase.queue(name, payload, options)
+    return jobs.queue(name, payload, options)
+end
+
+function motebase.on_job(name, handler)
+    return jobs.register(name, handler)
 end
 
 return motebase

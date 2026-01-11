@@ -100,6 +100,10 @@ build = {
         ["motebase.settings"] = "motebase/settings.lua",
         ["motebase.s3"] = "motebase/s3.lua",
         ["motebase.storage.s3"] = "motebase/storage/s3.lua",
+        ["motebase.migrations"] = "motebase/migrations.lua",
+        ["motebase.jobs"] = "motebase/jobs.lua",
+        ["motebase.jobs.worker"] = "motebase/jobs/worker.lua",
+        ["motebase.cron"] = "motebase/cron.lua",
     },
     install = {
         bin = {

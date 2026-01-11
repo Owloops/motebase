@@ -68,6 +68,36 @@ local registry = {
             db.exec("CREATE INDEX IF NOT EXISTS idx_logs_path ON _logs(path)")
         end,
     },
+
+    [2] = {
+        name = "add_jobs_table",
+        up = function()
+            db.exec([[
+                CREATE TABLE IF NOT EXISTS _jobs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    payload TEXT,
+                    status TEXT DEFAULT 'pending',
+                    priority TEXT DEFAULT 'normal',
+                    attempts INTEGER DEFAULT 0,
+                    max_attempts INTEGER DEFAULT 1,
+                    timeout INTEGER DEFAULT 1800,
+                    result TEXT,
+                    error TEXT,
+                    run_at INTEGER,
+                    started_at INTEGER,
+                    completed_at INTEGER,
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL
+                )
+            ]])
+
+            db.exec([[
+                CREATE INDEX IF NOT EXISTS idx_jobs_status_priority_run_at
+                ON _jobs(status, priority, run_at, created_at)
+            ]])
+        end,
+    },
 }
 
 -- helpers --

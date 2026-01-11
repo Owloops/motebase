@@ -41,6 +41,15 @@ Link records between collections. Subscribe to changes via Server-Sent Events.
 </td>
 <td width="50%">
 
+**Background Jobs & Cron**
+
+SQLite-backed job queue with retries. Built-in cron scheduler for recurring tasks.
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
 **Tiny Footprint**
 
 ~2MB binary. <25ms startup. SQLite + filesystem storage. LuaJIT-powered.
@@ -48,6 +57,8 @@ Link records between collections. Subscribe to changes via Server-Sent Events.
 </td>
 </tr>
 </table>
+
+> **Note:** Background jobs require running `motebase worker` alongside `motebase serve`. Cron tasks run automatically in the serve process.
 
 ## Installation
 
@@ -94,11 +105,14 @@ luajit ./bin/motebase.lua
 ## Usage
 
 ```bash
-# Start server
-./motebase
+# Start server (HTTP + cron scheduler)
+./motebase serve
+
+# Start background job worker (in separate terminal)
+./motebase worker
 
 # With options
-./motebase --port 3000 --host 127.0.0.1 --db myapp.db --secret my-secret-key
+./motebase serve --port 3000 --host 127.0.0.1 --db myapp.db --secret my-secret-key
 ```
 
 ### Options
@@ -624,6 +638,162 @@ expiry > @now
 | `:each` | All items match | `tags:each ~ "valid"` |
 | `:lower` | Case-insensitive | `title:lower = "test"` |
 
+## Background Jobs
+
+Queue long-running tasks to be processed by a separate worker process:
+
+```bash
+# Start worker (separate terminal)
+./motebase worker
+```
+
+### Queueing Jobs
+
+```lua
+-- hooks.lua
+local motebase = require("motebase")
+
+-- Queue a job
+motebase.queue("send_email", { to = "user@example.com", subject = "Hello" })
+
+-- With options
+motebase.queue("process_video", { video_id = 123 }, {
+    priority = "high",      -- high, normal, low
+    delay = 300,            -- delay in seconds
+    attempts = 3,           -- max retry attempts
+    timeout = 3600,         -- timeout in seconds (default: 30 min)
+})
+```
+
+### Registering Handlers
+
+```lua
+-- hooks.lua
+local motebase = require("motebase")
+
+motebase.on_job("send_email", function(payload)
+    -- payload contains { to = "...", subject = "..." }
+    send_email(payload.to, payload.subject)
+    return { sent = true }  -- optional result
+end)
+
+motebase.on_job("process_video", function(payload)
+    -- Long-running task processed by worker
+    process(payload.video_id)
+end)
+```
+
+### Job Management CLI
+
+```bash
+# List jobs
+./motebase jobs list
+./motebase jobs list --status pending
+./motebase jobs list --status failed
+
+# View statistics
+./motebase jobs stats
+
+# Retry failed jobs
+./motebase jobs retry <job_id>
+./motebase jobs retry --all
+
+# Delete jobs
+./motebase jobs delete <job_id>
+
+# Clear completed/failed jobs
+./motebase jobs clear
+./motebase jobs clear --status completed
+```
+
+### How It Works
+
+```
+┌─────────────────┐     ┌─────────────────┐
+│ motebase serve  │     │ motebase worker │
+│  ─────────────  │     │  ─────────────  │
+│  HTTP requests  │     │  Polls _jobs    │
+│  Queue jobs     │────▶│  Runs handlers  │
+│  Cron scheduler │     │  Retries/fails  │
+└─────────────────┘     └─────────────────┘
+         │                       │
+         └───────────┬───────────┘
+                     ▼
+              ┌─────────────┐
+              │   SQLite    │
+              │  _jobs tbl  │
+              └─────────────┘
+```
+
+- **Persistence**: Jobs survive restarts (stored in SQLite)
+- **Retries**: Failed jobs retry with exponential backoff
+- **Timeouts**: Stale running jobs are automatically failed
+- **Priority**: High priority jobs are processed first
+- **No external deps**: Just SQLite, no Redis/RabbitMQ needed
+
+## Cron Scheduler
+
+Built-in cron runs in the serve process for recurring tasks:
+
+```lua
+-- hooks.lua
+local cron = require("motebase.cron")
+
+-- Standard cron expression (minute hour day month weekday)
+cron.add("cleanup", "0 3 * * *", function()
+    -- Runs daily at 3:00 AM
+    cleanup_old_records()
+end)
+
+-- Every 5 minutes
+cron.add("health_check", "*/5 * * * *", function()
+    check_services()
+end)
+
+-- Macros supported
+cron.add("weekly_report", "@weekly", function()
+    generate_report()
+end)
+```
+
+### Cron Expression Syntax
+
+| Field | Values | Special Characters |
+|-------|--------|-------------------|
+| Minute | 0-59 | `*` `,` `-` `/` |
+| Hour | 0-23 | `*` `,` `-` `/` |
+| Day | 1-31 | `*` `,` `-` `/` |
+| Month | 1-12 | `*` `,` `-` `/` |
+| Weekday | 0-6 (Sun=0) | `*` `,` `-` `/` |
+
+### Macros
+
+| Macro | Equivalent |
+|-------|------------|
+| `@yearly` | `0 0 1 1 *` |
+| `@monthly` | `0 0 1 * *` |
+| `@weekly` | `0 0 * * 0` |
+| `@daily` | `0 0 * * *` |
+| `@hourly` | `0 * * * *` |
+
+### Built-in Cron Jobs
+
+MoteBase includes automatic maintenance tasks:
+
+| Job | Schedule | Description |
+|-----|----------|-------------|
+| Log cleanup | Every 6 hours | Delete logs older than 7 days |
+| DB optimize | Daily 3 AM | WAL checkpoint + PRAGMA optimize |
+| Job cleanup | Daily 4 AM | Delete completed jobs older than 7 days |
+| Job timeout | Every 5 min | Fail stale running jobs |
+
+### Cron Management CLI
+
+```bash
+# List registered cron jobs
+./motebase cron list
+```
+
 ## Deployment
 
 ### Docker Compose (Recommended)
@@ -674,6 +844,8 @@ All modules are available via `require()`:
 | `motebase.rules` | Rule evaluation |
 | `motebase.mail` | Email sending |
 | `motebase.oauth` | OAuth providers |
+| `motebase.jobs` | Background job queue |
+| `motebase.cron` | Cron scheduler |
 
 Wrap any function to add custom behavior:
 
