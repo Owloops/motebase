@@ -1766,3 +1766,122 @@ tr.selected td {
 .toast-info .toast-icon {
     color: var(--color-info);
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   JOBS PAGE STYLES
+   ═══════════════════════════════════════════════════════════════════ */
+
+.jobs-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-xl);
+}
+
+.stat-card-error {
+    border-color: var(--color-error);
+}
+
+.stat-card-error .stat-value {
+    color: var(--color-error);
+}
+
+.jobs-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-lg);
+    align-items: center;
+}
+
+.jobs-filters select,
+.jobs-filters input {
+    margin: 0;
+    width: auto;
+}
+
+.job-status {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius-sm);
+    font-size: 0.6875rem;
+    font-weight: 600;
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    border: 1px solid transparent;
+}
+
+.job-status.pending,
+.job-status-pending {
+    background: var(--color-info-bg);
+    color: var(--color-accent-glow);
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
+.job-status.running,
+.job-status-running {
+    background: var(--color-warning-bg);
+    color: var(--color-warning);
+    border-color: rgba(245, 158, 11, 0.3);
+}
+
+.job-status.success,
+.job-status.completed,
+.job-status-completed {
+    background: var(--color-success-bg);
+    color: var(--color-success);
+    border-color: rgba(34, 197, 94, 0.3);
+}
+
+.job-status.failed,
+.job-status-failed {
+    background: var(--color-error-bg);
+    color: var(--color-error);
+    border-color: rgba(239, 68, 68, 0.3);
+}
+
+.job-name {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    color: var(--color-text-primary);
+}
+
+.job-attempts {
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+    color: var(--color-text-muted);
+}
+
+.job-error {
+    font-size: 0.75rem;
+    color: var(--color-error);
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   CRONS PAGE STYLES
+   ═══════════════════════════════════════════════════════════════════ */
+
+.cron-id {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    color: var(--color-text-primary);
+}
+
+.cron-expression {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    background: var(--color-bg-elevated);
+    border-radius: var(--radius-sm);
+    color: var(--color-accent-glow);
+}
+
+.cron-time {
+    font-size: 0.8125rem;
+    color: var(--color-text-secondary);
+}

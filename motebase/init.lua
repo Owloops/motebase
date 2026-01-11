@@ -756,6 +756,132 @@ local function handle_clear_logs(ctx)
     server.json(ctx, 200, { cleared = true })
 end
 
+-- jobs handlers --
+
+local function handle_get_jobs(ctx)
+    if not ctx.user or not auth.is_superuser(ctx.user) then
+        server.error(ctx, 403, "superuser required")
+        return
+    end
+
+    local query = url_util.parse_query(ctx.query_string)
+    local page = query.page and tonumber(query.page) or 1
+    local per_page = query.perPage and tonumber(query.perPage) or 50
+    local status = query.status
+    local name = query.name
+
+    local result = jobs.list({
+        page = page,
+        per_page = per_page,
+        status = status ~= "" and status or nil,
+        name = name ~= "" and name or nil,
+    })
+
+    server.json(ctx, 200, result)
+end
+
+local function handle_get_jobs_stats(ctx)
+    if not ctx.user or not auth.is_superuser(ctx.user) then
+        server.error(ctx, 403, "superuser required")
+        return
+    end
+
+    local result = jobs.stats()
+    server.json(ctx, 200, result)
+end
+
+local function handle_get_job(ctx)
+    if not ctx.user or not auth.is_superuser(ctx.user) then
+        server.error(ctx, 403, "superuser required")
+        return
+    end
+
+    local job_id = tonumber(ctx.params.id)
+    if not job_id then
+        server.error(ctx, 400, "invalid job id")
+        return
+    end
+
+    local job = jobs.get(job_id)
+    if not job then
+        server.error(ctx, 404, "job not found")
+        return
+    end
+
+    server.json(ctx, 200, job)
+end
+
+local function handle_retry_job(ctx)
+    if not ctx.user or not auth.is_superuser(ctx.user) then
+        server.error(ctx, 403, "superuser required")
+        return
+    end
+
+    local job_id = tonumber(ctx.params.id)
+    if not job_id then
+        server.error(ctx, 400, "invalid job id")
+        return
+    end
+
+    local ok, err = jobs.retry(job_id)
+    if not ok then
+        server.error(ctx, 400, err or "failed to retry job")
+        return
+    end
+
+    server.json(ctx, 200, { retried = true })
+end
+
+local function handle_retry_all_jobs(ctx)
+    if not ctx.user or not auth.is_superuser(ctx.user) then
+        server.error(ctx, 403, "superuser required")
+        return
+    end
+
+    local count = jobs.retry_all_failed()
+    server.json(ctx, 200, { retried = count })
+end
+
+local function handle_delete_job(ctx)
+    if not ctx.user or not auth.is_superuser(ctx.user) then
+        server.error(ctx, 403, "superuser required")
+        return
+    end
+
+    local job_id = tonumber(ctx.params.id)
+    if not job_id then
+        server.error(ctx, 400, "invalid job id")
+        return
+    end
+
+    jobs.delete(job_id)
+    server.json(ctx, 200, { deleted = true })
+end
+
+local function handle_clear_jobs(ctx)
+    if not ctx.user or not auth.is_superuser(ctx.user) then
+        server.error(ctx, 403, "superuser required")
+        return
+    end
+
+    local query = url_util.parse_query(ctx.query_string)
+    local status = query.status
+    local count = jobs.clear(status ~= "" and status or nil)
+    server.json(ctx, 200, { cleared = count })
+end
+
+-- cron handlers --
+
+local function handle_get_crons(ctx)
+    if not ctx.user or not auth.is_superuser(ctx.user) then
+        server.error(ctx, 403, "superuser required")
+        return
+    end
+
+    local result = cron.list()
+    server.json(ctx, 200, { items = result })
+end
+
 -- routes --
 
 local function setup_routes()
@@ -797,6 +923,16 @@ local function setup_routes()
     router.get("/api/logs", handle_get_logs)
     router.get("/api/logs/stats", handle_get_logs_stats)
     router.delete("/api/logs", handle_clear_logs)
+
+    router.get("/api/jobs", handle_get_jobs)
+    router.get("/api/jobs/stats", handle_get_jobs_stats)
+    router.post("/api/jobs/retry-all", handle_retry_all_jobs)
+    router.get("/api/jobs/:id", handle_get_job)
+    router.post("/api/jobs/:id/retry", handle_retry_job)
+    router.delete("/api/jobs/:id", handle_delete_job)
+    router.delete("/api/jobs", handle_clear_jobs)
+
+    router.get("/api/crons", handle_get_crons)
 
     admin.register_routes(router)
 end

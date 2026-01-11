@@ -65,6 +65,11 @@ function adminApp() {
     logsStats: null,
     logsPage: 1,
     logsFilter: { status: '', method: '', path: '' },
+    jobsData: { items: [], totalItems: 0, totalPages: 1 },
+    jobsStats: null,
+    jobsPage: 1,
+    jobsFilter: { status: '', name: '' },
+    cronsData: { items: [] },
     showCollectionModal: false,
     collectionModalTab: 'fields',
     collectionModalError: '',
@@ -85,6 +90,9 @@ function adminApp() {
     toastIdCounter: 0,
 
     async init() {
+      if (this._initialized) return;
+      this._initialized = true;
+
       if (this.authToken) {
         await this.loadCollections();
       }
@@ -152,6 +160,16 @@ function adminApp() {
         this.logsPage = 1;
         this.loadLogs();
         this.loadLogsStats();
+      } else if (segments[0] === 'jobs') {
+        this.currentRoute = 'jobs';
+        this.routeParams = {};
+        this.jobsPage = 1;
+        this.loadJobs();
+        this.loadJobsStats();
+      } else if (segments[0] === 'crons') {
+        this.currentRoute = 'crons';
+        this.routeParams = {};
+        this.loadCrons();
       } else if (segments[0] === 'login') {
         this.currentRoute = 'dashboard';
         if (this.authToken) {
@@ -571,6 +589,135 @@ function adminApp() {
       if (status >= 400) return 'client-error';
       if (status >= 300) return 'redirect';
       return 'success';
+    },
+
+    // Jobs management
+    async loadJobs() {
+      this.isLoading = true;
+
+      try {
+        let path = `/jobs?page=${this.jobsPage}&perPage=${RECORDS_PER_PAGE}`;
+
+        if (this.jobsFilter.status) {
+          path += `&status=${this.jobsFilter.status}`;
+        }
+        if (this.jobsFilter.name) {
+          path += `&name=${encodeURIComponent(this.jobsFilter.name)}`;
+        }
+
+        this.jobsData = await this.apiRequest('GET', path);
+      } catch (error) {
+        this.showToast(error.message, 'error');
+        this.jobsData = { items: [], totalItems: 0, totalPages: 1 };
+      } finally {
+        this.isLoading = false;
+      }
+    },
+
+    async loadJobsStats() {
+      try {
+        this.jobsStats = await this.apiRequest('GET', '/jobs/stats');
+      } catch (error) {
+        console.error('Failed to load jobs stats:', error);
+      }
+    },
+
+    async handleRetryJob(jobId) {
+      try {
+        await this.apiRequest('POST', `/jobs/${jobId}/retry`);
+        this.showToast('Job queued for retry', 'success');
+        await this.loadJobs();
+        await this.loadJobsStats();
+      } catch (error) {
+        this.showToast(error.message, 'error');
+      }
+    },
+
+    async handleRetryAllJobs() {
+      if (!confirm('Are you sure you want to retry all failed jobs?')) {
+        return;
+      }
+
+      this.isLoading = true;
+
+      try {
+        const result = await this.apiRequest('POST', '/jobs/retry-all');
+        this.showToast(`${result.retried || 0} job(s) queued for retry`, 'success');
+        await this.loadJobs();
+        await this.loadJobsStats();
+      } catch (error) {
+        this.showToast(error.message, 'error');
+      } finally {
+        this.isLoading = false;
+      }
+    },
+
+    async handleDeleteJob(jobId) {
+      if (!confirm('Are you sure you want to delete this job?')) {
+        return;
+      }
+
+      try {
+        await this.apiRequest('DELETE', `/jobs/${jobId}`);
+        await this.loadJobs();
+        await this.loadJobsStats();
+      } catch (error) {
+        this.showToast(error.message, 'error');
+      }
+    },
+
+    async handleClearJobs(status) {
+      const statusLabel = status || 'all';
+      if (!confirm(`Are you sure you want to clear ${statusLabel} jobs? This cannot be undone.`)) {
+        return;
+      }
+
+      this.isLoading = true;
+
+      try {
+        let path = '/jobs';
+        if (status) {
+          path += `?status=${status}`;
+        }
+        await this.apiRequest('DELETE', path);
+        await this.loadJobs();
+        await this.loadJobsStats();
+        this.showToast(`${statusLabel} jobs cleared`, 'success');
+      } catch (error) {
+        this.showToast(error.message, 'error');
+      } finally {
+        this.isLoading = false;
+      }
+    },
+
+    getJobStatusClass(status) {
+      const classes = {
+        pending: 'pending',
+        running: 'running',
+        completed: 'success',
+        failed: 'failed'
+      };
+      return classes[status] || 'pending';
+    },
+
+    // Crons management
+    async loadCrons() {
+      this.isLoading = true;
+
+      try {
+        this.cronsData = await this.apiRequest('GET', '/crons');
+      } catch (error) {
+        this.showToast(error.message, 'error');
+        this.cronsData = { items: [] };
+      } finally {
+        this.isLoading = false;
+      }
+    },
+
+    formatCronNextRun(timestamp) {
+      if (!timestamp) return '—';
+      const date = new Date(timestamp * 1000);
+      return date.toLocaleString();
     },
 
     handleFileSelect(event, fieldName) {

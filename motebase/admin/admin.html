@@ -111,6 +111,8 @@
                             </button>
                             <div class="user-dropdown-menu" x-show="open" x-transition>
                                 <div class="user-dropdown-email" x-text="currentUser?.email"></div>
+                                <a href="#/jobs" @click="open = false; navigateTo('/jobs')">Queue</a>
+                                <a href="#/crons" @click="open = false; navigateTo('/crons')">Schedule</a>
                                 <a href="#/logs" @click="open = false; navigateTo('/logs')">Logs</a>
                                 <a href="#/settings" @click="open = false; navigateTo('/settings')">Settings</a>
                                 <hr>
@@ -810,6 +812,195 @@
                                     </button>
                                 </div>
                             </template>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Jobs Page -->
+                <template x-if="currentRoute === 'jobs'">
+                    <div>
+                        <div class="page-header">
+                            <h2>Background Jobs</h2>
+                            <div style="display: flex; gap: var(--spacing-sm);">
+                                <button class="outline" @click="handleRetryAllJobs()" :disabled="isLoading || jobsStats?.failed === 0">
+                                    Retry All Failed
+                                </button>
+                                <button class="outline secondary" @click="handleClearJobs('completed')" :disabled="isLoading">
+                                    Clear Completed
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Stats -->
+                        <div class="jobs-stats" x-show="jobsStats">
+                            <div class="stat-card">
+                                <div class="stat-value" x-text="jobsStats?.pending || 0"></div>
+                                <div class="stat-label">Pending</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" x-text="jobsStats?.running || 0"></div>
+                                <div class="stat-label">Running</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-value" x-text="jobsStats?.completed || 0"></div>
+                                <div class="stat-label">Completed</div>
+                            </div>
+                            <div class="stat-card stat-card-error" x-show="jobsStats?.failed > 0">
+                                <div class="stat-value" x-text="jobsStats?.failed || 0"></div>
+                                <div class="stat-label">Failed</div>
+                            </div>
+                        </div>
+
+                        <!-- Filters -->
+                        <div class="jobs-filters">
+                            <select x-model="jobsFilter.status" @change="jobsPage = 1; loadJobs()">
+                                <option value="">All Status</option>
+                                <option value="pending">Pending</option>
+                                <option value="running">Running</option>
+                                <option value="completed">Completed</option>
+                                <option value="failed">Failed</option>
+                            </select>
+                            <input
+                                type="search"
+                                placeholder="Filter by name..."
+                                x-model="jobsFilter.name"
+                                @input.debounce.300ms="jobsPage = 1; loadJobs()"
+                                style="width: 200px;"
+                            >
+                            <button class="outline" @click="loadJobs(); loadJobsStats()">Refresh</button>
+                        </div>
+
+                        <div x-show="isLoading" class="empty-state">Loading...</div>
+
+                        <div x-show="!isLoading && jobsData.items.length === 0" class="empty-state">
+                            <p>No jobs found.</p>
+                        </div>
+
+                        <div class="table-container" x-show="!isLoading && jobsData.items.length > 0">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Name</th>
+                                        <th>Status</th>
+                                        <th>Priority</th>
+                                        <th>Attempts</th>
+                                        <th>Created</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template x-for="job in jobsData.items" :key="job.id">
+                                        <tr>
+                                            <td style="font-family: var(--font-mono); font-size: 0.75rem;" x-text="job.id"></td>
+                                            <td>
+                                                <span class="job-name" x-text="job.name" :title="job.name"></span>
+                                                <template x-if="job.error">
+                                                    <div class="job-error" x-text="job.error" :title="job.error"></div>
+                                                </template>
+                                            </td>
+                                            <td>
+                                                <span class="job-status" :class="'job-status-' + job.status" x-text="job.status"></span>
+                                            </td>
+                                            <td>
+                                                <span class="job-priority" :class="'job-priority-' + job.priority" x-text="job.priority"></span>
+                                            </td>
+                                            <td x-text="job.attempts + '/' + job.max_attempts"></td>
+                                            <td x-text="formatDate(job.created_at)"></td>
+                                            <td>
+                                                <div style="display: flex; gap: var(--spacing-xs);">
+                                                    <template x-if="job.status === 'failed'">
+                                                        <button
+                                                            class="outline"
+                                                            style="width: auto; margin: 0; padding: 2px 8px; font-size: 0.75rem;"
+                                                            @click="handleRetryJob(job.id)"
+                                                        >
+                                                            Retry
+                                                        </button>
+                                                    </template>
+                                                    <button
+                                                        class="outline secondary"
+                                                        style="width: auto; margin: 0; padding: 2px 8px; font-size: 0.75rem;"
+                                                        @click="handleDeleteJob(job.id)"
+                                                    >
+                                                        Delete
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Pagination -->
+                        <div class="pagination" x-show="jobsData.items.length > 0">
+                            <span style="color: var(--pico-muted-color); font-size: 0.875rem;" x-text="jobsData.totalItems + ' jobs'"></span>
+                            <div style="flex: 1;"></div>
+                            <template x-if="jobsData.totalPages > 1">
+                                <div style="display: flex; align-items: center; gap: var(--spacing-md);">
+                                    <button
+                                        @click="jobsPage--; loadJobs()"
+                                        :disabled="jobsPage <= 1"
+                                        class="outline"
+                                        style="width: auto; margin: 0; padding: 4px 12px;"
+                                    >
+                                        ← Prev
+                                    </button>
+                                    <span x-text="jobsPage + ' / ' + jobsData.totalPages"></span>
+                                    <button
+                                        @click="jobsPage++; loadJobs()"
+                                        :disabled="jobsPage >= jobsData.totalPages"
+                                        class="outline"
+                                        style="width: auto; margin: 0; padding: 4px 12px;"
+                                    >
+                                        Next →
+                                    </button>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Crons Page -->
+                <template x-if="currentRoute === 'crons'">
+                    <div>
+                        <div class="page-header">
+                            <h2>Scheduled Tasks</h2>
+                            <button class="outline" @click="loadCrons()">Refresh</button>
+                        </div>
+
+                        <div x-show="isLoading" class="empty-state">Loading...</div>
+
+                        <div x-show="!isLoading && cronsData.items.length === 0" class="empty-state">
+                            <p>No scheduled tasks found.</p>
+                        </div>
+
+                        <div class="table-container" x-show="!isLoading && cronsData.items.length > 0">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Expression</th>
+                                        <th>Next Run</th>
+                                        <th>Last Run</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <template x-for="cron in cronsData.items" :key="cron.id">
+                                        <tr>
+                                            <td>
+                                                <span class="cron-id" x-text="cron.id" :title="cron.id"></span>
+                                            </td>
+                                            <td>
+                                                <code class="cron-expression" x-text="cron.expression"></code>
+                                            </td>
+                                            <td class="cron-time" x-text="formatCronNextRun(cron.next_run)"></td>
+                                            <td class="cron-time" x-text="cron.last_run ? formatCronNextRun(cron.last_run) : 'Never'"></td>
+                                        </tr>
+                                    </template>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </template>

@@ -170,6 +170,11 @@ function jobs.list(options)
         end
     end
 
+    -- Mark as array for JSON encoding (empty tables encode as {} otherwise)
+    if #items == 0 then
+        setmetatable(items, cjson.empty_array_mt)
+    end
+
     return {
         page = page,
         perPage = per_page,
