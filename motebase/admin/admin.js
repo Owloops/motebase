@@ -39,7 +39,6 @@ function adminApp() {
     currentUser: JSON.parse(localStorage.getItem(STORAGE_KEY_USER) || 'null'),
     loginForm: { email: '', password: '' },
     isLoading: false,
-    errorMessage: '',
     currentRoute: 'dashboard',
     routeParams: {},
     collections: [],
@@ -62,7 +61,6 @@ function adminApp() {
     selectedRecordIds: [],
     settingsData: null,
     settingsChanged: false,
-    settingsSaved: false,
     logsData: { items: [], totalItems: 0, totalPages: 1 },
     logsStats: null,
     logsPage: 1,
@@ -229,7 +227,6 @@ function adminApp() {
 
     async handleLogin() {
       this.isLoading = true;
-      this.errorMessage = '';
 
       try {
         const data = await this.apiRequest('POST', '/auth/login', {
@@ -248,7 +245,7 @@ function adminApp() {
         await this.loadCollections();
         window.location.hash = '/';
       } catch (error) {
-        this.errorMessage = error.message;
+        this.showToast(error.message, 'error');
       } finally {
         this.isLoading = false;
       }
@@ -273,7 +270,7 @@ function adminApp() {
         const data = await this.apiRequest('GET', '/collections');
         this.collections = Array.isArray(data.items) ? data.items : (Array.isArray(data) ? data : []);
       } catch (error) {
-        this.errorMessage = error.message;
+        this.showToast(error.message, 'error');
         this.collections = [];
       } finally {
         this.isLoading = false;
@@ -303,7 +300,7 @@ function adminApp() {
         this.totalPages = data.totalPages || 1;
         this.totalItems = data.totalItems || this.records.length;
       } catch (error) {
-        this.errorMessage = error.message;
+        this.showToast(error.message, 'error');
         this.records = [];
       } finally {
         this.isLoading = false;
@@ -340,7 +337,7 @@ function adminApp() {
 
         this.originalRecordData = JSON.parse(JSON.stringify(this.recordFormData));
       } catch (error) {
-        this.errorMessage = error.message;
+        this.showToast(error.message, 'error');
       } finally {
         this.isLoading = false;
       }
@@ -353,11 +350,10 @@ function adminApp() {
 
     async handleSaveRecord() {
       this.isLoading = true;
-      this.errorMessage = '';
 
       if (this.isAuthCollection && this.passwordField) {
         if (!this.passwordsMatch) {
-          this.errorMessage = 'Passwords do not match';
+          this.showToast('Passwords do not match', 'error');
           this.isLoading = false;
           return;
         }
@@ -407,7 +403,7 @@ function adminApp() {
 
         window.location.hash = `/collections/${collectionName}`;
       } catch (error) {
-        this.errorMessage = error.message;
+        this.showToast(error.message, 'error');
       } finally {
         this.isLoading = false;
       }
@@ -423,7 +419,7 @@ function adminApp() {
         await this.apiRequest('DELETE', `/collections/${collectionName}/records/${recordId}`);
         await this.loadRecords();
       } catch (error) {
-        this.errorMessage = error.message;
+        this.showToast(error.message, 'error');
       }
     },
 
@@ -469,8 +465,7 @@ function adminApp() {
       }
 
       this.isLoading = true;
-      this.errorMessage = '';
-
+      
       try {
         const collectionName = this.routeParams.collectionName;
 
@@ -481,7 +476,7 @@ function adminApp() {
         this.selectedRecordIds = [];
         await this.loadRecords();
       } catch (error) {
-        this.errorMessage = error.message;
+        this.showToast(error.message, 'error');
       } finally {
         this.isLoading = false;
       }
@@ -489,14 +484,12 @@ function adminApp() {
 
     async loadSettings() {
       this.isLoading = true;
-      this.errorMessage = '';
       this.settingsChanged = false;
-      this.settingsSaved = false;
 
       try {
         this.settingsData = await this.apiRequest('GET', '/settings');
       } catch (error) {
-        this.errorMessage = error.message;
+        this.showToast(error.message, 'error');
       } finally {
         this.isLoading = false;
       }
@@ -504,24 +497,18 @@ function adminApp() {
 
     markSettingsChanged() {
       this.settingsChanged = true;
-      this.settingsSaved = false;
     },
 
     async handleSaveSettings() {
       this.isLoading = true;
-      this.errorMessage = '';
 
       try {
         const result = await this.apiRequest('PATCH', '/settings', this.settingsData.settings);
         this.settingsData.settings = result.settings;
         this.settingsChanged = false;
-        this.settingsSaved = true;
-
-        setTimeout(() => {
-          this.settingsSaved = false;
-        }, 3000);
+        this.showToast('Settings saved', 'success');
       } catch (error) {
-        this.errorMessage = error.message;
+        this.showToast(error.message, 'error');
       } finally {
         this.isLoading = false;
       }
@@ -529,8 +516,7 @@ function adminApp() {
 
     async loadLogs() {
       this.isLoading = true;
-      this.errorMessage = '';
-
+      
       try {
         let path = `/logs?page=${this.logsPage}&perPage=${RECORDS_PER_PAGE}`;
 
@@ -546,7 +532,7 @@ function adminApp() {
 
         this.logsData = await this.apiRequest('GET', path);
       } catch (error) {
-        this.errorMessage = error.message;
+        this.showToast(error.message, 'error');
         this.logsData = { items: [], totalItems: 0, totalPages: 1 };
       } finally {
         this.isLoading = false;
@@ -567,15 +553,14 @@ function adminApp() {
       }
 
       this.isLoading = true;
-      this.errorMessage = '';
-
+      
       try {
         await this.apiRequest('DELETE', '/logs');
         this.logsData = { items: [], totalItems: 0, totalPages: 1 };
         this.logsStats = null;
         await this.loadLogsStats();
       } catch (error) {
-        this.errorMessage = error.message;
+        this.showToast(error.message, 'error');
       } finally {
         this.isLoading = false;
       }
@@ -1010,7 +995,7 @@ function adminApp() {
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
       } catch (error) {
-        this.errorMessage = error.message;
+        this.showToast(error.message, 'error');
       }
     },
 

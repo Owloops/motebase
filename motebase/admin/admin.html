@@ -72,7 +72,6 @@
                     <button type="submit" :aria-busy="isLoading" :disabled="isLoading">
                         Login
                     </button>
-                    <p x-show="errorMessage" x-text="errorMessage" class="error-message"></p>
                 </form>
             </article>
         </main>
@@ -595,8 +594,6 @@
                                     Cancel
                                 </button>
                             </div>
-
-                            <p x-show="errorMessage" x-text="errorMessage" class="error-message"></p>
                         </form>
                     </div>
                 </template>
@@ -640,7 +637,6 @@
                                         <button @click="handleSaveSettings()" :disabled="!settingsChanged || isLoading" :aria-busy="isLoading">
                                             Save Settings
                                         </button>
-                                        <span x-show="settingsSaved" style="color: var(--pico-ins-color); margin-left: var(--spacing-sm);">✓ Saved</span>
                                     </div>
                                 </div>
 
@@ -693,8 +689,6 @@
                                         </template>
                                     </div>
                                 </div>
-
-                                <p x-show="errorMessage" x-text="errorMessage" class="error-message"></p>
                             </div>
                         </template>
                     </div>
@@ -817,8 +811,6 @@
                                 </div>
                             </template>
                         </div>
-
-                        <p x-show="errorMessage" x-text="errorMessage" class="error-message"></p>
                     </div>
                 </template>
 
