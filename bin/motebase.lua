@@ -319,6 +319,7 @@ local function cmd_worker(config)
     end
 
     local jobs = require("motebase.jobs")
+    jobs.register_builtin_handlers()
     local handlers = jobs.list_handlers()
 
     io.stderr:write(output.color("green") .. "+" .. output.reset() .. " worker started\n")

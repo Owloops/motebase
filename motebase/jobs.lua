@@ -451,4 +451,22 @@ function jobs.process(job)
     end
 end
 
+-- built-in job handlers --
+
+function jobs.register_builtin_handlers()
+    local mail = require("motebase.mail")
+
+    jobs.register("__mb_send_password_reset__", function(payload)
+        local ok, err = mail.send_password_reset(payload.email, payload.token, payload.app_url)
+        if not ok then error("failed to send password reset email: " .. (err or "unknown error")) end
+        return { sent = true, email = payload.email }
+    end)
+
+    jobs.register("__mb_send_verification__", function(payload)
+        local ok, err = mail.send_verification(payload.email, payload.token, payload.app_url)
+        if not ok then error("failed to send verification email: " .. (err or "unknown error")) end
+        return { sent = true, email = payload.email }
+    end)
+end
+
 return jobs

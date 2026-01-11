@@ -4,6 +4,7 @@ local crypto = require("motebase.crypto")
 local log = require("motebase.utils.log")
 local email_parser = require("motebase.parser.email")
 local mail = require("motebase.mail")
+local jobs = require("motebase.jobs")
 
 local auth = {}
 
@@ -151,8 +152,11 @@ function auth.request_password_reset(email_addr, app_url)
     db.run("UPDATE _users SET reset_token = ?, reset_token_expiry = ? WHERE id = ?", { token_hash, expiry, user.id })
 
     if mail.is_enabled() and app_url then
-        local ok, err = mail.send_password_reset(user.email, token, app_url)
-        if not ok then log.error("mail", "failed to send password reset email", { error = err }) end
+        jobs.queue("__mb_send_password_reset__", {
+            email = user.email,
+            token = token,
+            app_url = app_url,
+        }, { attempts = 3 })
     end
 
     log.info("auth", "password reset requested", { user_id = user.id })
@@ -204,8 +208,11 @@ function auth.request_verification(user_id, app_url)
     db.run("UPDATE _users SET verify_token = ?, verify_token_expiry = ? WHERE id = ?", { token_hash, expiry, user.id })
 
     if mail.is_enabled() and app_url then
-        local ok, err = mail.send_verification(user.email, token, app_url)
-        if not ok then log.error("mail", "failed to send verification email", { error = err }) end
+        jobs.queue("__mb_send_verification__", {
+            email = user.email,
+            token = token,
+            app_url = app_url,
+        }, { attempts = 3 })
     end
 
     log.info("auth", "verification requested", { user_id = user.id })
