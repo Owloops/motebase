@@ -806,7 +806,21 @@ docker compose up -d
 
 # Production (auto Let's Encrypt cert)
 DOMAIN=api.example.com MOTEBASE_SECRET=your-secret docker compose up -d
+
+# With email support (for password reset, verification)
+DOMAIN=api.example.com \
+MOTEBASE_SECRET=your-secret \
+MOTEBASE_SMTP_HOST=smtp.example.com \
+MOTEBASE_SMTP_USER=user \
+MOTEBASE_SMTP_PASS=pass \
+MOTEBASE_SMTP_FROM=noreply@example.com \
+docker compose up -d
 ```
+
+The compose file includes three services:
+- `mote` - HTTP server + cron scheduler
+- `worker` - Background job processor (emails, etc.)
+- `caddy` - Reverse proxy with automatic HTTPS
 
 ### Manual Reverse Proxy
 

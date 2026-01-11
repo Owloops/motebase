@@ -8,6 +8,22 @@ services:
       - ./data:/data
     restart: unless-stopped
 
+  worker:
+    build: .
+    entrypoint: ["/motebase", "worker"]
+    environment:
+      - MOTEBASE_DB=/data/motebase.db
+      - MOTEBASE_SMTP_HOST=${MOTEBASE_SMTP_HOST:-}
+      - MOTEBASE_SMTP_PORT=${MOTEBASE_SMTP_PORT:-465}
+      - MOTEBASE_SMTP_USER=${MOTEBASE_SMTP_USER:-}
+      - MOTEBASE_SMTP_PASS=${MOTEBASE_SMTP_PASS:-}
+      - MOTEBASE_SMTP_FROM=${MOTEBASE_SMTP_FROM:-}
+    volumes:
+      - ./data:/data
+    depends_on:
+      - mote
+    restart: unless-stopped
+
   caddy:
     image: caddy:alpine
     ports:
