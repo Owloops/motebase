@@ -6,6 +6,8 @@ local log = require("motebase.utils.log")
 local http_parser = require("motebase.parser.http")
 local ratelimit = require("motebase.ratelimit")
 
+local concat = table.concat
+
 local cron_module = nil
 local function get_cron()
     if cron_module == nil then
@@ -227,11 +229,12 @@ local function send_response(wrapper, status, headers, body, keep_alive)
         headers["Connection"] = "close"
     end
 
+    local header_lines = {}
     for name, value in pairs(headers) do
-        response = response .. name .. ": " .. value .. "\r\n"
+        header_lines[#header_lines + 1] = name .. ": " .. value
     end
 
-    response = response .. "\r\n"
+    response = response .. concat(header_lines, "\r\n") .. "\r\n\r\n"
     if body then response = response .. body end
 
     return send_all(wrapper, response)
@@ -240,10 +243,11 @@ end
 local function send_sse_headers(wrapper, status, headers)
     headers["Connection"] = "keep-alive"
     local response = "HTTP/1.1 " .. status .. " " .. (status_text[status] or "OK") .. "\r\n"
+    local header_lines = {}
     for name, value in pairs(headers) do
-        response = response .. name .. ": " .. value .. "\r\n"
+        header_lines[#header_lines + 1] = name .. ": " .. value
     end
-    response = response .. "\r\n"
+    response = response .. concat(header_lines, "\r\n") .. "\r\n\r\n"
     return send_all(wrapper, response)
 end
 

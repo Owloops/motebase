@@ -3,6 +3,8 @@ local sort = require("motebase.query.sort")
 local expand = require("motebase.query.expand")
 local url_util = require("motebase.utils.url")
 
+local concat = table.concat
+
 ---@diagnostic disable-next-line: deprecated
 local unpack = table.unpack or unpack
 
@@ -134,13 +136,15 @@ function query.build_sql(collection_name, opts)
     local limit = opts.per_page or DEFAULT_PER_PAGE
     local offset = ((opts.page or 1) - 1) * limit
 
-    local sql = "SELECT "
-        .. select_fields
-        .. " FROM "
-        .. collection_name
-        .. where_clause
-        .. order_clause
-        .. " LIMIT ? OFFSET ?"
+    local sql = concat({
+        "SELECT",
+        select_fields,
+        "FROM",
+        collection_name,
+        where_clause,
+        order_clause,
+        "LIMIT ? OFFSET ?",
+    }, " ")
 
     params[#params + 1] = limit
     params[#params + 1] = offset

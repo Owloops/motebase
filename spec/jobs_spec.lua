@@ -63,10 +63,7 @@ describe("jobs", function()
 
     describe("handler registration", function()
         it("registers a handler", function()
-            local called = false
-            local ok = jobs.register("test_job", function()
-                called = true
-            end)
+            local ok = jobs.register("test_job", function() end)
             assert.is_true(ok)
             assert.is_function(jobs.get_handler("test_job"))
         end)
@@ -236,7 +233,7 @@ describe("jobs", function()
             local job_id = jobs.queue("retry_me", {})
             jobs.mark_failed(job_id, "failed")
 
-            local ok, err = jobs.retry(job_id)
+            local ok = jobs.retry(job_id)
             assert.is_true(ok)
 
             local retried = jobs.get(job_id)
@@ -290,8 +287,7 @@ describe("jobs", function()
         it("times out stale running jobs", function()
             local job_id = jobs.queue("stuck_job", {}, { timeout = 10 })
 
-            -- Simulate claiming the job
-            local job = jobs.claim_next()
+            jobs.claim_next()
             assert.are.equal("running", jobs.get(job_id).status)
 
             -- Manually set started_at to the past (simulate job running for too long)
